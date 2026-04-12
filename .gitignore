@@ -44,3 +44,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Large per-state boundary GeoJSON (~1.5GB total). Keep locally or on R2; see data/README.md
+/data/cws-boundaries/
+/data/wsa-boundaries/
+/data/other-boundaries/
+/data/electric-boundaries/
