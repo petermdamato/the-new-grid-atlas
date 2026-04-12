@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
 import * as turf from "@turf/turf";
 import { FeatureCollection, Feature, Polygon, MultiPolygon } from "geojson";
 import { geocodeUSAddress } from "@/lib/mapboxGeocode";
+import { loadStateFeatureCollection } from "@/lib/boundaryGeojson";
 
 // Simple in-memory cache for state GeoJSON files
 const stateCache: Record<string, FeatureCollection> = {};
@@ -56,15 +55,16 @@ async function findBestFeature(lat: number, lng: number, stateCode: string, data
     let geojson = stateCache[cacheKey];
 
     if (!geojson) {
-      const filePath = path.join(process.cwd(), "data", datasetDir, "by-state", `${stateCode}.geojson`);
-      try {
-        const fileContent = await fs.readFile(filePath, "utf8");
-        geojson = JSON.parse(fileContent);
-        stateCache[cacheKey] = geojson;
-      } catch (err) {
-        console.error(`Could not load boundary file for state ${stateCode} in ${datasetDir}:`, err);
+      const loaded = await loadStateFeatureCollection(
+        datasetDir as "cws-boundaries" | "wsa-boundaries" | "other-boundaries",
+        stateCode
+      );
+      if (!loaded) {
+        console.error(`Could not load boundary data for state ${stateCode} in ${datasetDir}`);
         return null;
       }
+      geojson = loaded;
+      stateCache[cacheKey] = geojson;
     }
 
     const point = turf.point([lng, lat]);

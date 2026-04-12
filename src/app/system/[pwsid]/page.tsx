@@ -10,13 +10,14 @@ async function getEPAData(pwsid: string) {
 export default async function SystemPage({
   params,
 }: {
-  params: { pwsid: string };
+  params: Promise<{ pwsid: string }>;
 }) {
-  const data = await getEPAData(params.pwsid);
+  const { pwsid } = await params;
+  const data = await getEPAData(pwsid);
 
   return (
     <main className="p-6">
-      <h1>PWSID: {params.pwsid}</h1>
+      <h1>PWSID: {pwsid}</h1>
       <pre>{JSON.stringify(data, null, 2)}</pre>
     </main>
   );

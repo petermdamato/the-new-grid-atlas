@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
 import * as turf from "@turf/turf";
 import { FeatureCollection, Feature, Polygon, MultiPolygon } from "geojson";
 import { geocodeUSAddress } from "@/lib/mapboxGeocode";
+import { loadStateFeatureCollection } from "@/lib/boundaryGeojson";
 
 const stateCache: Record<string, FeatureCollection> = {};
 
@@ -44,14 +43,10 @@ async function findAllElectricContainingPoint(
   let geojson = stateCache[cacheKey];
 
   if (!geojson) {
-    const filePath = path.join(process.cwd(), "data", "electric-boundaries", "by-state", `${stateCode}.geojson`);
-    try {
-      const fileContent = await fs.readFile(filePath, "utf8");
-      geojson = JSON.parse(fileContent) as FeatureCollection;
-      stateCache[cacheKey] = geojson;
-    } catch {
-      return [];
-    }
+    const loaded = await loadStateFeatureCollection("electric-boundaries", stateCode);
+    if (!loaded) return [];
+    geojson = loaded;
+    stateCache[cacheKey] = geojson;
   }
 
   const point = turf.point([lng, lat]);
