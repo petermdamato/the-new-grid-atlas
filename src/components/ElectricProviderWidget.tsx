@@ -51,7 +51,7 @@ export default function ElectricProviderWidget({
 
   return (
     <div
-      className={`absolute z-10 bottom-[80px] right-[80px] transition-all duration-700 ease-out ${
+      className={`transition-all duration-700 ease-out ${
         show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8 pointer-events-none"
       }`}
     >

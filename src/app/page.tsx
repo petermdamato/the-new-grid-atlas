@@ -11,6 +11,7 @@ import AddressSearch, {
 import SystemMap from "@/components/SystemMap";
 import ViolationsWidget from "@/components/ViolationsWidget";
 import ElectricProviderWidget from "@/components/ElectricProviderWidget";
+import MapMarkerLegend from "@/components/MapMarkerLegend";
 import DataCenterTipModal from "@/components/DataCenterTipModal";
 import { Feature } from "geojson";
 import { Info, UserPlus, Lightbulb } from "lucide-react";
@@ -77,22 +78,22 @@ export default function HomePage() {
   const electricResultsActive =
     searchResult.features.length > 0 && searchResult.utilityType === "electric";
 
+  const visibleDcTypes = visibleCapacityTypesFromFilters(dataCenterTypeFilters, filtersUnlocked);
+
   return (
     <main className="h-screen w-screen relative overflow-hidden bg-gray-50">
       <SystemMap
         features={searchResult.features}
         center={searchResult.center}
         selectedIndex={selectedIndex}
-        visibleDataCenterCapacityTypes={visibleCapacityTypesFromFilters(
-          dataCenterTypeFilters,
-          filtersUnlocked
-        )}
+        visibleDataCenterCapacityTypes={visibleDcTypes}
         visibleWarehouseGroups={visibleWarehouseGroupsFromFilters(warehouseTypeFilters)}
         dataCenterDetailsUnlocked={filtersUnlocked}
         utilityType={searchResult.utilityType ?? "water"}
       />
 
       <AddressSearch
+        mapPinCenter={searchResult.center}
         dataCenterTypeFilters={dataCenterTypeFilters}
         onToggleDataCenterType={(key) =>
           setDataCenterTypeFilters((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -111,24 +112,30 @@ export default function HomePage() {
         }}
       />
 
-      {searchResult.features.length > 0 && searchResult.utilityType === "water" && (
-        <ViolationsWidget
-          features={searchResult.features}
-          selectedIndex={selectedIndex}
-          onSelectIndex={setSelectedIndex}
-          onDismiss={dismissUtilitySearch}
-          detailUnlocked={filtersUnlocked}
+      <div className="absolute z-10 bottom-[80px] right-[80px] flex flex-col items-end gap-2">
+        {waterResultsActive && (
+          <ViolationsWidget
+            features={searchResult.features}
+            selectedIndex={selectedIndex}
+            onSelectIndex={setSelectedIndex}
+            onDismiss={dismissUtilitySearch}
+            detailUnlocked={filtersUnlocked}
+          />
+        )}
+        {electricResultsActive && (
+          <ElectricProviderWidget
+            features={searchResult.features}
+            selectedIndex={selectedIndex}
+            onSelectIndex={setSelectedIndex}
+            onDismiss={dismissUtilitySearch}
+          />
+        )}
+        <MapMarkerLegend
+          visibleDataCenterCapacityTypes={visibleDcTypes}
+          warehouseTypeFilters={warehouseTypeFilters}
+          showSearchedAddress={Boolean(searchResult.center)}
         />
-      )}
-
-      {searchResult.features.length > 0 && searchResult.utilityType === "electric" && (
-        <ElectricProviderWidget
-          features={searchResult.features}
-          selectedIndex={selectedIndex}
-          onSelectIndex={setSelectedIndex}
-          onDismiss={dismissUtilitySearch}
-        />
-      )}
+      </div>
 
       <DataCenterTipModal open={tipModalOpen} onClose={() => setTipModalOpen(false)} />
 

@@ -18,21 +18,21 @@ export default function AboutPage() {
             About this project
           </span>
           <h2 className="font-bold text-zinc-900 leading-tight mb-5">
-            Utility System Explorer
+            The New Grid Atlas
           </h2>
           <div className="space-y-4 text-base text-zinc-600 leading-relaxed">
             <p>
-              We&apos;re living through a boom in artificial intelligence, where investor dollars have been funneled
-              to train models on massive troves of data. Reports have found these data centers, known as hyperscalers, to have issues ranging from exploding electric bills and concerns about water supply, as the
+              We&apos;re living through a potentially radical change in the way technology affects our daily lives, where investor dollars have been funneled
+              to data centers processing massive troves of data. Reports have found these data centers, known as hyperscalers, to have issues ranging from exploding electric bills and concerns about the effects on the water supply, as the
               centers require not only data but energy and water for cooling. There are even reports
-              these centers heat the ambient air, raising local temperatures as much as 16 degrees Fahrenheit.
+              these centers heat the ambient air, raising local temperatures as much as 16 degrees Fahrenheit. The demands of e-commerce continue to shape the world around us, with traffic concerns and pollution becoming as important to balance as potential new jobs from warehouses.
             </p>
             <p>
-              This tool highlights confirmed locations of data centers. Logged in users can view additional types
+              This tool highlights the growing impact of the new grid, starting with confirmed locations of data centers and warehouses for the two largest e-commerce retailers in the U.S. Logged in users can view additional types
               of data centers such as colocation centers (transfer stations for data) and enterprise facilities, being used for a variety of purposes.
             </p>
             <p>
-              In the near future, new data points will be added. We plan to include e-commerce distribution centers as well as datasets pulled from satellite imagery, to help residents
+              In the near future, new data points will be added. We plan to include analysis from datasets pulled from satellite imagery and traffic data, to help residents
               understand the real-world impact the new economy is having on their lives. This project is self funded and is not done for profit. If you can, please donate to support this project.
             </p>
             <p>
@@ -73,6 +73,16 @@ export default function AboutPage() {
                 className="text-zinc-800 underline underline-offset-2 hover:text-zinc-950"
               >
                 Heat islands caused by data centers
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://pmc.ncbi.nlm.nih.gov/articles/PMC11269699/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-zinc-800 underline underline-offset-2 hover:text-zinc-950"
+              >
+                Effect of e-commerce shipping centers on traffic and pollution
               </a>
             </li>
             <li>

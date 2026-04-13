@@ -183,6 +183,7 @@ export default function ViolationsWidget({
   detailUnlocked,
 }: ViolationsWidgetProps) {
   const [allViolations, setAllViolations] = useState<Violation[]>([]);
+  const [violationsFetchError, setViolationsFetchError] = useState(false);
   const [metadata, setMetadata] = useState<SystemMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(false);
@@ -207,6 +208,7 @@ export default function ViolationsWidget({
       if (!pwsid) return;
       
       setLoading(true);
+      setViolationsFetchError(false);
       try {
         // Fetch metadata
         const metaRes = await fetch(`/api/system-metadata/${pwsid}`);
@@ -219,19 +221,25 @@ export default function ViolationsWidget({
 
         // Fetch violations
         const vioRes = await fetch(`/api/system-violations/${pwsid}`);
-        if (!vioRes.ok) throw new Error("Failed to fetch violations");
-        const vioData = await vioRes.json();
-        
-        if (Array.isArray(vioData)) {
-          const sorted = [...vioData].sort((a: Violation, b: Violation) => {
-            return new Date(b.enfdate).getTime() - new Date(a.enfdate).getTime();
-          });
-          setAllViolations(sorted);
-        } else {
+        if (!vioRes.ok) {
+          setViolationsFetchError(true);
           setAllViolations([]);
+        } else {
+          setViolationsFetchError(false);
+          const vioData = await vioRes.json();
+
+          if (Array.isArray(vioData)) {
+            const sorted = [...vioData].sort((a: Violation, b: Violation) => {
+              return new Date(b.enfdate).getTime() - new Date(a.enfdate).getTime();
+            });
+            setAllViolations(sorted);
+          } else {
+            setAllViolations([]);
+          }
         }
       } catch (err) {
         console.error("Error fetching data:", err);
+        setViolationsFetchError(true);
         setAllViolations([]);
       } finally {
         setLoading(false);
@@ -359,8 +367,8 @@ export default function ViolationsWidget({
       </div>
     )}
 
-    <div 
-      className={`absolute z-10 bottom-[80px] right-[80px] transition-all duration-700 ease-out ${
+    <div
+      className={`transition-all duration-700 ease-out ${
         show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8 pointer-events-none"
       }`}
     >
@@ -470,6 +478,13 @@ export default function ViolationsWidget({
               {loading ? (
                 <div className="flex justify-center py-10">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-900"></div>
+                </div>
+              ) : violationsFetchError ? (
+                <div className="px-1 py-8 text-center">
+                  <p className="text-sm font-semibold text-zinc-900">Connection Error.</p>
+                  <p className="mt-1 text-xs leading-relaxed text-zinc-500">
+                    We&apos;re having trouble connecting to the water data. Please try again later.
+                  </p>
                 </div>
               ) : previewViolations.length > 0 ? (
                 previewViolations.map((v, i) => (

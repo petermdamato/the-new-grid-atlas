@@ -3,10 +3,19 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Feature } from "geojson";
-import { MapPin, ArrowRight, Loader2, Droplets, Zap, ChevronDown, X, KeyRound } from "lucide-react";
+import {
+  MapPin,
+  ArrowRight,
+  Loader2,
+  Droplets,
+  Zap,
+  ChevronDown,
+  X,
+  KeyRound,
+} from "lucide-react";
 import Autocomplete from "react-google-autocomplete";
 
-export type UtilityType = "water" | "electric";
+export type UtilityType = "water" | "electric" | "off";
 
 export type DataCenterTypeFilterKey = "hyperscaler" | "colocation" | "enterprise";
 
@@ -60,6 +69,8 @@ interface AddressSearchProps {
   addressFieldResetSignal?: number;
   /** Members can use Colocation / Enterprise filters */
   filtersUnlocked?: boolean;
+  /** Current map pin from parent — used to keep the pin when turning utility overlay Off */
+  mapPinCenter?: [number, number] | null;
 }
 
 export default function AddressSearch({
@@ -72,6 +83,7 @@ export default function AddressSearch({
   electricResultsActive = false,
   addressFieldResetSignal = 0,
   filtersUnlocked = false,
+  mapPinCenter = null,
 }: AddressSearchProps) {
   const [address, setAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -119,8 +131,10 @@ export default function AddressSearch({
   }
 
   const showClearControl =
-    (utilityType === "water" && (address.trim().length > 0 || waterResultsActive)) ||
-    (utilityType === "electric" && (address.trim().length > 0 || electricResultsActive));
+    address.trim().length > 0 ||
+    waterResultsActive ||
+    electricResultsActive ||
+    Boolean(mapPinCenter);
 
   /**
    * @param utilityOverride — use when switching tabs so the correct API runs before `utilityType` state updates.
@@ -130,12 +144,40 @@ export default function AddressSearch({
     if (!query) return;
 
     const mode = utilityOverride ?? utilityType;
+
     setIsLoading(true);
     setError(null);
 
-    const endpoint = mode === "electric" ? "/api/lookup-electric" : "/api/lookup-pws";
-
     try {
+      if (mode === "off") {
+        const res = await fetch("/api/geocode-address", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: query }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          const errMsg = data.error || "An error occurred during search";
+          setError(errMsg);
+          onResult({ features: [], center: null, error: errMsg, utilityType: "off" });
+          return;
+        }
+        if (data.center && Array.isArray(data.center) && data.center.length === 2) {
+          onResult({
+            features: [],
+            center: data.center as [number, number],
+            utilityType: "off",
+          });
+        } else {
+          const errMsg = data.reason || "Could not locate that address.";
+          setError(errMsg);
+          onResult({ features: [], center: null, error: errMsg, utilityType: "off" });
+        }
+        return;
+      }
+
+      const endpoint = mode === "electric" ? "/api/lookup-electric" : "/api/lookup-pws";
+
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -169,7 +211,12 @@ export default function AddressSearch({
     } catch {
       const errMsg = "Failed to connect to the server.";
       setError(errMsg);
-      onResult({ features: [], center: null, error: errMsg, utilityType: mode });
+      onResult({
+        features: [],
+        center: null,
+        error: errMsg,
+        utilityType: mode === "off" ? "off" : mode,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -179,11 +226,15 @@ export default function AddressSearch({
     if (next === utilityType) return;
     setUtilityType(next);
     setError(null);
+    if (next === "off") {
+      onResult({ features: [], center: mapPinCenter ?? null, utilityType: "off" });
+      return;
+    }
     const q = getQuery();
     if (q) {
       void handleSearch(q, next);
     } else {
-      onResult({ features: [], center: null, utilityType: next });
+      onResult({ features: [], center: mapPinCenter ?? null, utilityType: next });
     }
   }
 
@@ -231,38 +282,10 @@ export default function AddressSearch({
         </div>
       ) : (
         <div className="px-5 pb-5 pt-3">
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-3">
         <span className="block text-[10px] font-semibold tracking-[0.12em] text-zinc-600 uppercase drop-shadow-sm">
           Search by address
         </span>
-        
-        {/* Utility Toggle */}
-        <div className="flex bg-zinc-200/60 p-1 rounded-lg">
-          <button
-            type="button"
-            onClick={() => switchUtilityType("water")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all duration-200 ${
-              utilityType === "water" 
-                ? "bg-white text-blue-600 shadow-sm" 
-                : "text-zinc-500 hover:text-zinc-700"
-            }`}
-          >
-            <Droplets className="w-3.5 h-3.5" />
-            Water
-          </button>
-          <button
-            type="button"
-            onClick={() => switchUtilityType("electric")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all duration-200 ${
-              utilityType === "electric"
-                ? "bg-white text-amber-600 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-700"
-            }`}
-          >
-            <Zap className="w-3.5 h-3.5 shrink-0" />
-            Electric
-          </button>
-        </div>
       </div>
 
       <div className="flex h-10 items-center gap-2 rounded-2xl border border-white/40 bg-white/ px-3 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-xl">
@@ -343,6 +366,49 @@ export default function AddressSearch({
             {error}
           </div>
         )}
+      </div>
+
+      <div className="mt-3 border-t border-zinc-200/90 pt-3">
+        <span className="mb-2 block text-[10px] font-semibold tracking-[0.12em] text-zinc-600 uppercase drop-shadow-sm">
+          Show utility service area
+        </span>
+        <div className="flex gap-0.5 rounded-md bg-zinc-200/60 p-0.5">
+          <button
+            type="button"
+            onClick={() => switchUtilityType("water")}
+            className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-bold transition-colors duration-200 ${
+              utilityType === "water"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-700"
+            }`}
+          >
+            <Droplets className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">Water</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => switchUtilityType("electric")}
+            className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-bold transition-colors duration-200 ${
+              utilityType === "electric"
+                ? "bg-white text-amber-600 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-700"
+            }`}
+          >
+            <Zap className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">Electric</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => switchUtilityType("off")}
+            className={`flex min-w-0 flex-1 items-center justify-center rounded px-2 py-1 text-[11px] font-bold transition-colors duration-200 ${
+              utilityType === "off"
+                ? "bg-white text-zinc-800 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-700"
+            }`}
+          >
+            Off
+          </button>
+        </div>
       </div>
 
       <div className="mt-5 pt-5 border-t border-zinc-200/90">
