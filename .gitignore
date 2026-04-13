@@ -50,3 +50,8 @@ next-env.d.ts
 /data/wsa-boundaries/
 /data/other-boundaries/
 /data/electric-boundaries/
+
+# Local / generated — do not commit
+/public/data_centers copy.geojson
+/scripts/data_center_id_migration_sql.txt
+/scripts/remap_data_center_ids.py
