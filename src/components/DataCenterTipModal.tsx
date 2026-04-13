@@ -327,22 +327,31 @@ export default function DataCenterTipModal({ open, onClose }: DataCenterTipModal
               </p>
             ) : null}
 
-            <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
-              <button
-                type="button"
+            <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col-reverse gap-2 sm:order-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  disabled={submitting}
+                  className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="h-10 rounded-xl bg-zinc-900 px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? "Submitting…" : "Submit tip"}
+                </button>
+              </div>
+              <Link
+                href="/data-centers"
                 onClick={handleClose}
-                disabled={submitting}
-                className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-60"
+                className="inline-flex h-10 shrink-0 items-center justify-center self-start rounded-xl border border-zinc-200 bg-white px-3.5 text-xs font-semibold text-zinc-800 transition-colors hover:border-zinc-300 hover:bg-zinc-50 sm:order-1"
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="h-10 rounded-xl bg-zinc-900 px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {submitting ? "Submitting…" : "Submit tip"}
-              </button>
+                View listings by name
+              </Link>
             </div>
           </form>
         )}

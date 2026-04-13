@@ -17,6 +17,7 @@ import * as turf from "@turf/turf";
 import { Feature, FeatureCollection } from "geojson";
 import type { UtilityType } from "@/components/AddressSearch";
 import { facilityUrlSlugForFeature, warehouseStreetHeading } from "@/lib/facility-address-slug";
+import { DATA_CENTER_GEOJSON_URL } from "@/lib/facility-dataset-url";
 
 interface SystemMapProps {
   features: Feature[];
@@ -87,7 +88,7 @@ export default function SystemMap({
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/data_centers.geojson")
+    fetch(DATA_CENTER_GEOJSON_URL)
       .then((r) => (r.ok ? r.json() : null))
       .then((fc) => {
         if (!cancelled && fc?.type === "FeatureCollection") setDataCenters(fc);

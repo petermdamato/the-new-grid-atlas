@@ -17,6 +17,7 @@ import {
   warehouseStreetHeading,
   type FacilityUrlKind,
 } from "@/lib/facility-address-slug";
+import { DATA_CENTER_GEOJSON_URL } from "@/lib/facility-dataset-url";
 import DataCenterConfirmationBadge from "@/components/DataCenterConfirmationBadge";
 import DataCenterConfirmationForm from "@/components/DataCenterConfirmationForm";
 
@@ -69,7 +70,7 @@ export default function FacilityPage() {
     const load = async () => {
       try {
         if (kind === "data-center") {
-          const r = await fetch("/data_centers.geojson");
+          const r = await fetch(DATA_CENTER_GEOJSON_URL);
           if (!r.ok) throw new Error("Failed to load data centers");
           const json = (await r.json()) as FeatureCollection;
           if (!cancelled) setDcFc(json?.type === "FeatureCollection" ? json : null);

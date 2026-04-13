@@ -149,6 +149,23 @@ export function facilityUrlSlugForFeature(feature: Feature, kind: FacilityUrlKin
   return base;
 }
 
+/**
+ * Same URL slugs as {@link facilityUrlSlugForFeature} for each feature in file order, in O(n) time
+ * (avoids O(n²) scans when listing thousands of facilities).
+ */
+export function facilityUrlSlugsInFileOrder(features: Feature[], kind: FacilityUrlKind): string[] {
+  const bases = features.map((f) => baseSlugFromGeoFeature(f, kind));
+  const slugs: string[] = [];
+  const ordinal = new Map<string, number>();
+  for (let i = 0; i < features.length; i++) {
+    const base = bases[i]!;
+    const k = (ordinal.get(base) ?? 0) + 1;
+    ordinal.set(base, k);
+    slugs.push(k === 1 ? base : `${base}-${k}`);
+  }
+  return slugs;
+}
+
 export function findFacilityByUrlSlug(
   fc: { features: Feature[] } | null,
   kind: FacilityUrlKind,
