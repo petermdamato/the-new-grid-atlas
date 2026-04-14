@@ -36,7 +36,7 @@ export default function AboutPage() {
               understand the real-world impact the new economy is having on their lives. This project is self funded and is not done for profit. If you can, please donate to support this project.
             </p>
             <p>
-              This project is not for profit and will never sell data on data centers, fulfillment, public
+              This project is self funded and will never sell data on data centers, fulfillment, public
               feedback, or other data displayed or collected from users, or distribute it for another commercial use.
             </p>
           </div>

@@ -11,6 +11,7 @@
     "build:data-centers": "node scripts/build_data_centers_geojson.mjs",
     "split-electric": "node --max-old-space-size=8192 scripts/split_electric_by_state.mjs",
     "build:amazon-warehouses": "node scripts/build_amazon_warehouses_geojson.mjs",
+    "merge:walmart-warehouses": "node scripts/merge_walmart_into_amazon_geojson.mjs",
     "confirm:data-centers": "node scripts/confirm_data_centers_google.mjs",
     "upload:boundaries-r2": "node scripts/upload-boundaries-to-r2.mjs"
   },

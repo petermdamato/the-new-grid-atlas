@@ -254,7 +254,7 @@ export default function SystemMap({
         name: warehouseStreetHeading(p),
         address: String(p?.address ?? ""),
         postal: "",
-        companyName: "Amazon",
+        companyName: String(p?.companyName ?? "Amazon"),
         warehouseTypeRaw: String(p?.warehouseTypeRaw ?? ""),
         detailKind: "warehouse",
         detailId: code,

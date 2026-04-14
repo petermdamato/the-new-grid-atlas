@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FeatureCollection } from "geojson";
+import type { Feature, FeatureCollection } from "geojson";
 
 import type { DataCenterConfirmationValue } from "@/lib/data-center-confirmation";
 
@@ -8,6 +8,21 @@ export const AMAZON_WAREHOUSE_EDITORIAL_FALLBACK: DataCenterConfirmationValue = 
   confirmed: true,
   confirmation_link: "https://amzprep.com/",
 };
+
+/** Non-Amazon warehouses (e.g. Walmart) are not editorially confirmed until a DB row exists. */
+export const NON_AMAZON_WAREHOUSE_CONFIRMATION_DEFAULT: DataCenterConfirmationValue = {
+  confirmed: false,
+  confirmation_link: null,
+};
+
+function isWalmartGeoFeature(f: Feature): boolean {
+  return String(f.properties?.companyName ?? "").trim().toLowerCase() === "walmart";
+}
+
+/** Facility page / API: Walmart codes from merged geojson use this prefix when there is no DB row. */
+export function isWalmartWarehouseCode(warehouseCode: string): boolean {
+  return /^wm-/i.test(String(warehouseCode ?? "").trim());
+}
 
 /**
  * GeoJSON defaults for every `code`, then DB rows overlay (so `confirmed: false` in Supabase wins).
@@ -21,7 +36,10 @@ export function mergeAmazonWarehouseConfirmationsWithGeojson(
     for (const f of warehousesFc.features) {
       const code = String(f.properties?.code ?? "").trim();
       if (!code) continue;
-      m.set(code, AMAZON_WAREHOUSE_EDITORIAL_FALLBACK);
+      m.set(
+        code,
+        isWalmartGeoFeature(f) ? NON_AMAZON_WAREHOUSE_CONFIRMATION_DEFAULT : AMAZON_WAREHOUSE_EDITORIAL_FALLBACK
+      );
     }
   }
   for (const [code, v] of fromDb) {
@@ -79,9 +97,11 @@ export async function fetchAmazonWarehouseConfirmation(
 
   if (error) {
     console.warn("amazon_warehouse_confirmations lookup:", error.message);
+    if (isWalmartWarehouseCode(warehouseCode)) return NON_AMAZON_WAREHOUSE_CONFIRMATION_DEFAULT;
     return AMAZON_WAREHOUSE_EDITORIAL_FALLBACK;
   }
   if (!data) {
+    if (isWalmartWarehouseCode(warehouseCode)) return NON_AMAZON_WAREHOUSE_CONFIRMATION_DEFAULT;
     return AMAZON_WAREHOUSE_EDITORIAL_FALLBACK;
   }
   return {

@@ -38,9 +38,7 @@ export default function SignupPage() {
       }
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
-        setError(
-          "If email confirmation is enabled in Supabase, check your inbox then sign in below. Otherwise try signing in."
-        );
+        setError("Check your email to confirm your account");
         setMode("signin");
         return;
       }

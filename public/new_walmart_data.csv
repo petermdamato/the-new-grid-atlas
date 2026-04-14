@@ -1,0 +1,46 @@
+State,City,Address,Note,nextGen,Type,volume
+Illinois,Joliet,"1500 W Laraway Rd, Joliet, IL 60433",Automated facility,TRUE,Fulfillment,
+Texas,Lancaster,"1400 N Dallas Ave, Lancaster, TX 75146",,TRUE,Fulfillment,
+Indiana,Plainfield,"3150 Americenter Dr, Plainfield, IN 46168",,TRUE,Fulfillment,
+Nevada,Las Vegas,"6425 N Hollywood Blvd, Las Vegas, NV 89115",,TRUE,Fulfillment,
+California,Colton,"2500 W San Bernardino Ave, Colton, CA 92324",,TRUE,Fulfillment,
+New Jersey,Pedricktown,"180 Pennsville Pedricktown Rd, Pedricktown, NJ 08067",,TRUE,Fulfillment,
+Pennsylvania,Bethlehem,"3400 High Point Blvd, Bethlehem, PA 18017",,TRUE,Fulfillment,
+Alabama,Mobile,"3500 Industrial Blvd, Mobile, AL 36693",,TRUE,Fulfillment,
+South Carolina,Ridgeville,"525 Walmart Way, Ridgeville, SC 29472",,TRUE,Fulfillment,
+Florida,Orlando,"4550 Rocket Blvd, Orlando, FL 32820",,TRUE,Fulfillment,
+New York,Johnstown,400 Lawrence Bell Dr 12095,,FALSE,Distribution,50M+ units
+Pennsylvania,Bedford,1030 Walmart Dr 15522,,FALSE,Distribution,45M+ units
+Pennsylvania,Pottsville,10 Logistics Dr 17901,,FALSE,Distribution,40M+ units
+Pennsylvania,Woodland,100 Walmart Dr 16881,,FALSE,Distribution,35M+ units
+Pennsylvania,Tobyhanna,100 Commerce Blvd 18466,,FALSE,Distribution,38M+ units
+Alabama,Opelika,5001 Walmart Dr 36801,,FALSE,Distribution,60M+ units
+Florida,Arcadia,1720 SE Highway 70 34266,,FALSE,Distribution,42M+ units
+Florida,Cocoa,7455 Grissom Pkwy 32927,,FALSE,Distribution,48M+ units
+Georgia,Monroe,1400 Walmart Way 30655,,FALSE,Distribution,55M+ units
+Georgia,Douglas,4701 S US Highway 221 31535,,FALSE,Distribution,38M+ units
+Illinois,Shelbyville,1700 W Main St 62565,,FALSE,Distribution,45M+ units
+Illinois,Olney,1000 N West St 62450,,FALSE,Distribution,40M+ units
+Indiana,Gas City,5259 E 500 S 46933,,FALSE,Distribution,52M+ units
+Ohio,Wintersville,450 Township Rd 1095 43953,,FALSE,Distribution,48M+ units
+Wisconsin,Menomonie,2121 Schneider Dr 54751,,FALSE,Distribution,35M+ units
+Arkansas,Bentonville,3001 SE J St 72712,,FALSE,Distribution,100M+ units
+Mississippi,Brookhaven,2000 Manufacturer's Blvd 39601,,FALSE,Distribution,42M+ units
+Texas,Terrell,600 Atlanta St 75160,,FALSE,Distribution,58M+ units
+Texas,Palestine,1200 NW Loop 256 75801,,FALSE,Distribution,45M+ units
+Texas,New Braunfels,1100 W Highway 46 78130,,FALSE,Distribution,50M+ units
+Wyoming,Cheyenne,300 Campstool Rd 82007,,FALSE,Distribution,30M+ units
+Utah,St. George,2400 S Commerce Dr 84790,,FALSE,Distribution,35M+ units
+Oregon,Hermiston,2110 S Highway 395 97838,,FALSE,Distribution,40M+ units
+Washington,Grandview,100 Walmart Dr 98930,,FALSE,Distribution,45M+ units
+Nevada,Sparks,300 Vista Blvd 89434,,FALSE,Distribution,38M+ units
+Ontario,Cornwall,"18520 Highway 401, Cornwall, K6H 5R5",,FALSE,Distribution,
+Ontario,Mississauga,"1245 Meyerside Dr, Mississauga, L5T 1C7",,FALSE,Distribution,
+Ontario,Cambridge,"1175 Franklin Blvd, Cambridge, N1R 8B7",,FALSE,Distribution,
+Alberta,Calgary,"6103 12 St SE, Calgary, T2H 2M5",,FALSE,Distribution,
+Alberta,Balzac,"261022 Wagon Trail Way, Balzac, T4B 2T3",,FALSE,Distribution,
+British Columbia,Surrey,"17475 56 Ave, Surrey, V3S 2X6",,FALSE,Distribution,
+Quebec,Saint-Romuald,"1500 Rue des Riveurs, Saint-Romuald, G6W 5M6",,FALSE,Distribution,
+Manitoba,Winnipeg,"1345 Inkster Blvd, Winnipeg, R2X 2W7",,FALSE,Distribution,
+Saskatchewan,Saskatoon,"450 71st St E, Saskatoon, S7K 3S5",,FALSE,Distribution,
+New Brunswick,Moncton,"100 Walmart Blvd, Moncton, E1E 0A1",,FALSE,Distribution,
