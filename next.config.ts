@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Browsers request /favicon.ico by default; without a real .ico file, hosts often
+  // fall back to a generic icon. Serve your PNG at that path via rewrite.
+  async rewrites() {
+    return [{ source: "/favicon.ico", destination: "/favicon.png" }];
+  },
   // Keep huge GeoJSON out of the serverless bundle when deployed (e.g. Vercel).
   // At runtime set BOUNDARIES_BASE_URL to a public R2 (or other HTTPS) base.
   outputFileTracingExcludes: {

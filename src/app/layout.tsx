@@ -36,10 +36,9 @@ export const metadata: Metadata = {
   metadataBase: siteUrl(),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
-  // Tab icon: `src/app/icon.png` (Next file convention). Apple / OG use public favicon.
-  icons: {
-    apple: [{ url: "/favicon.png", sizes: "180x180" }],
-  },
+  // Tab + Apple touch icons: use `src/app/icon.png` and `src/app/apple-icon.png` (Next merges
+  // them into <head>). Listing icons only in metadata is not enough — without those files,
+  // Next shows its default triangle in the tab.
   openGraph: {
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
