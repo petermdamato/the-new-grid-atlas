@@ -40,6 +40,8 @@ interface ViolationsWidgetProps {
   onSelectIndex: (index: number) => void;
   onDismiss: () => void;
   detailUnlocked: boolean;
+  /** Skip enter delay when embedded in mobile slide-in drawer */
+  instantReveal?: boolean;
 }
 
 function ViolationRow({ v, detailUnlocked }: { v: Violation; detailUnlocked: boolean }) {
@@ -181,6 +183,7 @@ export default function ViolationsWidget({
   onSelectIndex,
   onDismiss,
   detailUnlocked,
+  instantReveal = false,
 }: ViolationsWidgetProps) {
   const [allViolations, setAllViolations] = useState<Violation[]>([]);
   const [violationsFetchError, setViolationsFetchError] = useState(false);
@@ -195,13 +198,15 @@ export default function ViolationsWidget({
   const pwsName = feature?.properties?.PWS_Name || "Water System Found";
 
   useEffect(() => {
-    // Delay showing the widget to allow the map to pan/zoom first
+    if (instantReveal) {
+      setShow(true);
+      return;
+    }
     const showTimer = setTimeout(() => {
       setShow(true);
     }, 1200);
-
     return () => clearTimeout(showTimer);
-  }, [features]); // Re-run when new search results arrive
+  }, [features, instantReveal]);
 
   useEffect(() => {
     async function fetchData() {
@@ -373,7 +378,7 @@ export default function ViolationsWidget({
       }`}
     >
       {/* Parent wrapper with background and padding */}
-      <div className="bg-[#FAFAFA] p-5 rounded-2xl">
+      <div className="max-w-full rounded-2xl bg-[#FAFAFA] p-3 sm:p-5">
         {/* Title moved outside white section */}
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="block min-w-0 flex-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-400">
@@ -413,7 +418,7 @@ export default function ViolationsWidget({
         </div>
 
         {/* Original white card content */}
-        <div className="bg-white rounded-2xl shadow-[0_2px_24px_rgba(0,0,0,0.08)] w-[384px] flex flex-col font-jakarta overflow-hidden">
+        <div className="flex w-full max-w-[384px] flex-col overflow-hidden rounded-2xl bg-white font-jakarta shadow-[0_2px_24px_rgba(0,0,0,0.08)]">
           {/* Header */}
           <div className="px-5 pt-5 pb-4 border-b border-zinc-100">
             <h2 className="text-base font-bold text-zinc-900 leading-tight mb-1">

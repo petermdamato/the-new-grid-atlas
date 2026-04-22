@@ -50,6 +50,8 @@ next-env.d.ts
 /data/wsa-boundaries/
 /data/other-boundaries/
 /data/electric-boundaries/
+# ZCTA centroid CSV (~33k rows) — build with npm run build:zcta-centroids
+/data/zcta_centroids.csv
 
 # Local / generated — do not commit
 /public/data_centers copy.geojson

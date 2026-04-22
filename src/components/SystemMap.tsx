@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { KeyRound } from "lucide-react";
+import { KeyRound, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
   fetchAllAmazonWarehouseConfirmations,
@@ -31,6 +32,8 @@ interface SystemMapProps {
   dataCenterDetailsUnlocked: boolean;
   /** Water vs electric utility polygons — stroke/fill styling differs */
   utilityType?: UtilityType;
+  /** Signed-in AI map query hits (points), drawn above base facility layers */
+  aiMapQueryFeatures?: Feature[] | null;
 }
 
 /** Rotating stroke styles for overlapping electric territories (cf. water CWS / Other / WSA) */
@@ -39,6 +42,38 @@ const ELECTRIC_STYLES = [
   { stroke: "#6d28d9", fill: "#6d28d9", dash: [2, 2] as number[] },
   { stroke: "#0369a1", fill: "#0369a1", dash: [4, 2] as number[] },
   { stroke: "#be123c", fill: "#be123c", dash: [1, 3] as number[] },
+] as const;
+
+/** AI-hit dots: same fill colors as `data-centers-circle` / `amazon-warehouses-circle` by `kind`. */
+const AI_QUERY_CIRCLE_COLOR = [
+  "case",
+  ["==", ["get", "kind"], "data-center"],
+  [
+    "match",
+    ["get", "capacitytype"],
+    "Colocation",
+    "#155e75",
+    "Neocloud",
+    "#14b8a6",
+    "Enterprise",
+    "#0f766e",
+    "Hyperscaler",
+    "#14b8a6",
+    "#5c7c78",
+  ],
+  ["==", ["get", "kind"], "warehouse"],
+  [
+    "match",
+    ["get", "warehouseGroup"],
+    "FC",
+    "#ea580c",
+    "DC",
+    "#9a3412",
+    "Other",
+    "#171717",
+    "#171717",
+  ],
+  "#737373",
 ] as const;
 
 type DataCenterHover = {
@@ -51,8 +86,10 @@ type DataCenterHover = {
   /** Amazon warehouse: show facility type in popup */
   warehouseTypeRaw?: string;
   /** Deep link to facility page */
-  detailKind: "data-center" | "warehouse";
+  detailKind: "data-center" | "warehouse" | "zip-centroid";
   detailId: string;
+  /** Populated for data-center / warehouse when a facility URL can be built */
+  facilityHref?: string;
 };
 
 /** Placeholder copy shown (blurred) when the user is not signed in */
@@ -70,6 +107,7 @@ export default function SystemMap({
   visibleWarehouseGroups,
   dataCenterDetailsUnlocked,
   utilityType = "water",
+  aiMapQueryFeatures = null,
 }: SystemMapProps) {
   const router = useRouter();
   const mapRef = useRef<MapRef>(null);
@@ -85,6 +123,25 @@ export default function SystemMap({
     () => new globalThis.Map<string, { confirmed: boolean; confirmation_link: string | null }>()
   );
   const [whConfirmBulkLoading, setWhConfirmBulkLoading] = useState(true);
+
+  /** Tap-to-pin facility tooltip (not hover-dismiss); aligns with Tailwind `md` breakpoint */
+  const [isMobileMapUi, setIsMobileMapUi] = useState(false);
+  const [mobileFacilityTooltipOpen, setMobileFacilityTooltipOpen] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => setIsMobileMapUi(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileMapUi) {
+      setMobileFacilityTooltipOpen(false);
+      setHoverDc(null);
+    }
+  }, [isMobileMapUi]);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,18 +271,30 @@ export default function SystemMap({
     whConfirmBulkLoading,
   ]);
 
+  const bboxFeatures = useMemo(() => {
+    const list: Feature[] = [];
+    if (features.length) list.push(...features);
+    if (aiMapQueryFeatures?.length) list.push(...aiMapQueryFeatures);
+    return list;
+  }, [features, aiMapQueryFeatures]);
+
   useEffect(() => {
-    if (features.length > 0 && mapRef.current) {
+    if (bboxFeatures.length > 0 && mapRef.current) {
       try {
-        const allFeatures = turf.featureCollection(features);
+        const allFeatures = turf.featureCollection(bboxFeatures);
         const [minLng, minLat, maxLng, maxLat] = turf.bbox(allFeatures);
+        const includeAiHits = (aiMapQueryFeatures?.length ?? 0) > 0;
 
         mapRef.current.fitBounds(
           [
             [minLng, minLat],
             [maxLng, maxLat],
           ],
-          { padding: 40, duration: 1000 }
+          {
+            padding: 40,
+            duration: 1000,
+            ...(includeAiHits ? { maxZoom: 9 } : {}),
+          }
         );
       } catch (err) {
         console.error("Error calculating bbox:", err);
@@ -236,49 +305,102 @@ export default function SystemMap({
     } else if (center && mapRef.current) {
       mapRef.current.flyTo({ center, zoom: 12, duration: 1000 });
     }
-  }, [features, center]);
+  }, [bboxFeatures, center, aiMapQueryFeatures?.length]);
 
-  const onDataCenterMouseMove = useCallback((e: MapMouseEvent) => {
-    const f = e.features?.[0];
-    if (f?.geometry.type !== "Point") {
-      setHoverDc(null);
-      return;
-    }
-    const coords = f.geometry.coordinates;
-    const p = f.properties as Record<string, string | number | undefined> | undefined;
-    if (String(p?.kind) === "warehouse") {
-      const code = String(p?.code ?? "");
-      setHoverDc({
+  const buildHoverFromMapFeature = useCallback(
+    (f: Feature): DataCenterHover | null => {
+      if (f.geometry.type !== "Point") return null;
+      const coords = f.geometry.coordinates;
+      const p = f.properties as Record<string, string | number | undefined> | undefined;
+      const whList = amazonWarehouses?.features ?? [];
+      const dcList = dataCenters?.features ?? [];
+
+      const facilityHrefFor = (kind: "data-center" | "warehouse"): string | undefined => {
+        const list = kind === "warehouse" ? whList : dcList;
+        if (!list.length) return undefined;
+        const slug = facilityUrlSlugForFeature(f, kind, list);
+        return `/facility/${kind === "warehouse" ? "warehouse" : "data-center"}/${encodeURIComponent(slug)}`;
+      };
+
+      if (String(p?.kind) === "zip-centroid") {
+        return {
+          lng: coords[0],
+          lat: coords[1],
+          name: String(p?.name ?? "ZIP / ZCTA centroid"),
+          address: "Query returned only the centroid — JOIN to data_centers or warehouses to plot facilities.",
+          postal: "",
+          companyName: "",
+          detailKind: "zip-centroid",
+          detailId: "",
+        };
+      }
+      if (String(p?.kind) === "warehouse") {
+        const code = String(p?.code ?? "");
+        return {
+          lng: coords[0],
+          lat: coords[1],
+          name: warehouseStreetHeading(p),
+          address: String(p?.address ?? ""),
+          postal: "",
+          companyName: String(p?.companyName ?? "Amazon"),
+          warehouseTypeRaw: String(p?.warehouseTypeRaw ?? ""),
+          detailKind: "warehouse",
+          detailId: code,
+          facilityHref: code.trim() ? facilityHrefFor("warehouse") : undefined,
+        };
+      }
+      const dcId = String(p?.id ?? "").trim();
+      return {
         lng: coords[0],
         lat: coords[1],
-        name: warehouseStreetHeading(p),
+        name: String(p?.name ?? ""),
         address: String(p?.address ?? ""),
-        postal: "",
-        companyName: String(p?.companyName ?? "Amazon"),
-        warehouseTypeRaw: String(p?.warehouseTypeRaw ?? ""),
-        detailKind: "warehouse",
-        detailId: code,
-      });
-      return;
-    }
-    setHoverDc({
-      lng: coords[0],
-      lat: coords[1],
-      name: String(p?.name ?? ""),
-      address: String(p?.address ?? ""),
-      postal: String(p?.postal ?? ""),
-      companyName: String(p?.companyName ?? ""),
-      detailKind: "data-center",
-      detailId: String(p?.id ?? ""),
-    });
+        postal: String(p?.postal ?? ""),
+        companyName: String(p?.companyName ?? ""),
+        detailKind: "data-center",
+        detailId: dcId,
+        facilityHref: dcId ? facilityHrefFor("data-center") : undefined,
+      };
+    },
+    [amazonWarehouses?.features, dataCenters?.features]
+  );
+
+  const closeMobileFacilityTooltip = useCallback(() => {
+    setMobileFacilityTooltipOpen(false);
+    setHoverDc(null);
   }, []);
+
+  const onDataCenterMouseMove = useCallback(
+    (e: MapMouseEvent) => {
+      if (isMobileMapUi) return;
+      const f = e.features?.[0];
+      if (!f || f.geometry.type !== "Point") {
+        setHoverDc(null);
+        return;
+      }
+      setHoverDc(buildHoverFromMapFeature(f));
+    },
+    [isMobileMapUi, buildHoverFromMapFeature]
+  );
 
   const onFacilityClick = useCallback(
     (e: MapMouseEvent) => {
-      if (!dataCenterDetailsUnlocked) return;
       const f = e.features?.[0];
-      if (f?.geometry.type !== "Point") return;
+      if (!f || f.geometry.type !== "Point") return;
+      const layerId = (f as { layer?: { id?: string } }).layer?.id;
+
+      if (isMobileMapUi && layerId !== "ai-map-query-circle") {
+        const h = buildHoverFromMapFeature(f);
+        if (h) {
+          setHoverDc(h);
+          setMobileFacilityTooltipOpen(true);
+        }
+        return;
+      }
+
+      if (!dataCenterDetailsUnlocked) return;
       const p = f.properties as Record<string, string | number | undefined> | undefined;
+      if (String(p?.kind) === "zip-centroid") return;
       if (String(p?.kind) === "warehouse") {
         const list = amazonWarehouses?.features ?? [];
         if (!list.length) return;
@@ -286,24 +408,40 @@ export default function SystemMap({
         router.push(`/facility/warehouse/${encodeURIComponent(slug)}`);
         return;
       }
+      const dcId = String(p?.id ?? "").trim();
+      if (!dcId) return;
       const list = dataCenters?.features ?? [];
       if (!list.length) return;
       const slug = facilityUrlSlugForFeature(f, "data-center", list);
       router.push(`/facility/data-center/${encodeURIComponent(slug)}`);
     },
-    [router, dataCenterDetailsUnlocked, dataCenters?.features, amazonWarehouses?.features]
+    [
+      router,
+      isMobileMapUi,
+      dataCenterDetailsUnlocked,
+      dataCenters?.features,
+      amazonWarehouses?.features,
+      buildHoverFromMapFeature,
+    ]
   );
 
   const onMapMouseLeave = useCallback(() => {
+    if (isMobileMapUi && mobileFacilityTooltipOpen) return;
     setHoverDc(null);
-  }, []);
+  }, [isMobileMapUi, mobileFacilityTooltipOpen]);
+
+  const aiMapQueryFc = useMemo((): FeatureCollection | null => {
+    if (!aiMapQueryFeatures?.length) return null;
+    return { type: "FeatureCollection", features: aiMapQueryFeatures };
+  }, [aiMapQueryFeatures]);
 
   const interactiveIds = useMemo(() => {
     const ids: string[] = [];
+    if (aiMapQueryFc?.features.length) ids.push("ai-map-query-circle");
     if (filteredDataCenters?.features.length) ids.push("data-centers-circle");
     if (filteredWarehouses?.features.length) ids.push("amazon-warehouses-circle");
     return ids;
-  }, [filteredDataCenters?.features.length, filteredWarehouses?.features.length]);
+  }, [aiMapQueryFc?.features.length, filteredDataCenters?.features.length, filteredWarehouses?.features.length]);
 
   return (
     <div className="w-full h-full absolute inset-0 z-0 bg-gray-100">
@@ -330,20 +468,17 @@ export default function SystemMap({
           const pid = props?.PWSID ?? props?.ID ?? props?.OBJECTID ?? index;
 
           let strokeColor = "#051821";
-          let fillColor = "#051821";
           let lineDash: number[] = isSelected ? [1] : [2, 2];
 
           if (utilityType === "electric") {
             const ei = Number(props?.electricIndex ?? index) % ELECTRIC_STYLES.length;
             const es = ELECTRIC_STYLES[ei]!;
             strokeColor = es.stroke;
-            fillColor = es.fill;
             lineDash = isSelected ? [1] : [...es.dash];
           } else {
             const systemType = props?.systemType || "CWS";
             if (systemType === "Other" || systemType === "WSA") {
               strokeColor = "#1A4645";
-              fillColor = "#1A4645";
             }
           }
 
@@ -351,17 +486,21 @@ export default function SystemMap({
             <Source key={`source-${utilityType}-${index}-${String(pid)}`} id={`utility-${utilityType}-${index}`} type="geojson" data={feature}>
               {isSelected && (
                 <Layer
-                  id={`utility-fill-${utilityType}-${index}`}
-                  type="fill"
+                  id={`utility-line-halo-${utilityType}-${index}`}
+                  type="line"
+                  layout={{ "line-cap": "round", "line-join": "round" }}
                   paint={{
-                    "fill-color": fillColor,
-                    "fill-opacity": 0.2,
+                    "line-color": "#a3a3a3",
+                    "line-width": 6,
+                    "line-opacity": 0.95,
+                    "line-dasharray": lineDash,
                   }}
                 />
               )}
               <Layer
                 id={`utility-line-${utilityType}-${index}`}
                 type="line"
+                layout={{ "line-cap": "round", "line-join": "round" }}
                 paint={{
                   "line-color": strokeColor,
                   "line-width": 2,
@@ -426,6 +565,39 @@ export default function SystemMap({
           </Source>
         )}
 
+        {aiMapQueryFc && aiMapQueryFc.features.length > 0 && (
+          <Source id="ai-map-query" type="geojson" data={aiMapQueryFc}>
+            <Layer
+              id="ai-map-query-circle"
+              type="circle"
+              paint={{
+                "circle-radius": [
+                  "interpolate",
+                  ["linear"],
+                  ["zoom"],
+                  2,
+                  2,
+                  6,
+                  4,
+                  10,
+                  6,
+                  14,
+                  9,
+                ],
+                "circle-color": [...AI_QUERY_CIRCLE_COLOR],
+                "circle-opacity": [
+                  "case",
+                  ["==", ["get", "kind"], "warehouse"],
+                  0.92,
+                  0.88,
+                ],
+                "circle-stroke-width": 2,
+                "circle-stroke-color": "#a3a3a3",
+              }}
+            />
+          </Source>
+        )}
+
         {center && (
           <Source
             key={`search-center-${center[0]}-${center[1]}-${features.length}`}
@@ -456,7 +628,21 @@ export default function SystemMap({
             offset={14}
             maxWidth="300px"
           >
-            <div className="relative p-1 pr-2 pt-1 text-left font-jakarta">
+            <div
+              className={`relative pr-2 text-left font-jakarta ${
+                mobileFacilityTooltipOpen ? "border border-zinc-200/90 pl-2 pt-10" : "p-1 pr-2 pt-1"
+              }`}
+            >
+              {mobileFacilityTooltipOpen ? (
+                <button
+                  type="button"
+                  onClick={closeMobileFacilityTooltip}
+                  className="absolute left-1.5 top-1.5 z-[35] rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800"
+                  aria-label="Close tooltip"
+                >
+                  <X className="h-4 w-4" strokeWidth={2.25} />
+                </button>
+              ) : null}
               {hoverDc.detailId &&
               (hoverDc.detailKind === "data-center" || hoverDc.detailKind === "warehouse") ? (
                 <div className="absolute right-1 top-1 z-20 max-w-[7rem] leading-none">
@@ -487,9 +673,18 @@ export default function SystemMap({
                     </div>
                   ) : null}
                   {hoverDc.detailId ? (
-                    <div className="mt-3 inline-block text-[12px] font-bold tracking-wide text-zinc-800 [font-variant:small-caps]">
-                      click to open facility page
-                    </div>
+                    mobileFacilityTooltipOpen && hoverDc.facilityHref ? (
+                      <Link
+                        href={hoverDc.facilityHref}
+                        className="mt-3 inline-block text-[12px] font-bold tracking-wide text-sky-700 underline decoration-sky-400 underline-offset-2 [font-variant:small-caps] hover:text-sky-900"
+                      >
+                        Open facility page
+                      </Link>
+                    ) : (
+                      <div className="mt-3 inline-block text-[12px] font-bold tracking-wide text-zinc-800 [font-variant:small-caps]">
+                        click to open facility page
+                      </div>
+                    )
                   ) : null}
                 </>
               ) : (

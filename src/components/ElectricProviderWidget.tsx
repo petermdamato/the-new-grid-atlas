@@ -23,6 +23,7 @@ interface ElectricProviderWidgetProps {
   selectedIndex: number;
   onSelectIndex: (index: number) => void;
   onDismiss: () => void;
+  instantReveal?: boolean;
 }
 
 export default function ElectricProviderWidget({
@@ -30,13 +31,18 @@ export default function ElectricProviderWidget({
   selectedIndex,
   onSelectIndex,
   onDismiss,
+  instantReveal = false,
 }: ElectricProviderWidgetProps) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
+    if (instantReveal) {
+      setShow(true);
+      return;
+    }
     const t = setTimeout(() => setShow(true), 1200);
     return () => clearTimeout(t);
-  }, [features]);
+  }, [features, instantReveal]);
 
   const feature = features[selectedIndex];
   const p = (feature?.properties ?? {}) as Record<string, unknown>;
@@ -55,7 +61,7 @@ export default function ElectricProviderWidget({
         show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8 pointer-events-none"
       }`}
     >
-      <div className="bg-[#FAFAFA] p-5 rounded-2xl font-jakarta">
+      <div className="max-w-full rounded-2xl bg-[#FAFAFA] p-3 font-jakarta sm:p-5">
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="block min-w-0 flex-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-400">
             Electric service territory
@@ -95,7 +101,7 @@ export default function ElectricProviderWidget({
           </div>
         </div>
 
-        <div className="w-[384px] max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-2xl bg-white shadow-[0_2px_24px_rgba(0,0,0,0.08)]">
+        <div className="w-full max-w-[384px] overflow-hidden rounded-2xl bg-white shadow-[0_2px_24px_rgba(0,0,0,0.08)]">
           <div className="border-b border-zinc-100 px-5 pb-4 pt-5">
             <div className="mb-2 flex items-start gap-2">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50">

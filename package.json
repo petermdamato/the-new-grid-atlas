@@ -13,16 +13,21 @@
     "build:amazon-warehouses": "node scripts/build_amazon_warehouses_geojson.mjs",
     "merge:walmart-warehouses": "node scripts/merge_walmart_into_amazon_geojson.mjs",
     "confirm:data-centers": "node scripts/confirm_data_centers_google.mjs",
-    "upload:boundaries-r2": "node scripts/upload-boundaries-to-r2.mjs"
+    "upload:boundaries-r2": "node scripts/upload-boundaries-to-r2.mjs",
+    "build:zcta-centroids": "node scripts/build_zcta_centroids.mjs"
   },
   "dependencies": {
+    "@langchain/core": "^1.1.40",
+    "@langchain/openai": "^1.4.4",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.1",
     "@turf/turf": "^7.3.4",
     "cheerio": "^1.2.0",
+    "duckdb": "^1.4.4",
     "lucide-react": "^1.7.0",
     "mapbox-gl": "^3.20.0",
     "next": "15.5.11",
+    "node-sql-parser": "^5.4.0",
     "puppeteer": "^24.40.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
