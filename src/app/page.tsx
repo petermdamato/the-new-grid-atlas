@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import AddressSearch, {
   DataCenterTypeFilters,
+  DEFAULT_UTILITY_TYPE,
   UtilityType,
   WarehouseTypeFilters,
 } from "@/components/AddressSearch";
@@ -13,8 +14,10 @@ import ViolationsWidget from "@/components/ViolationsWidget";
 import ElectricProviderWidget from "@/components/ElectricProviderWidget";
 import MapMarkerLegend from "@/components/MapMarkerLegend";
 import DataCenterTipModal from "@/components/DataCenterTipModal";
+import { readMapUiPreferences, writeMapUiPreferences } from "@/lib/map-ui-preferences";
+import { legendVisibleDcTypesFromAiFeatures, legendWarehouseFiltersFromAiFeatures } from "@/lib/map-legend-from-features";
 import { Feature } from "geojson";
-import { Info, UserPlus, Lightbulb } from "lucide-react";
+import { Droplets, Info, Lightbulb, MapPin, UserPlus, Zap } from "lucide-react";
 
 function visibleCapacityTypesFromFilters(f: DataCenterTypeFilters, filtersUnlocked: boolean): string[] {
   const out: string[] = [];
@@ -35,6 +38,8 @@ function visibleWarehouseGroupsFromFilters(f: WarehouseTypeFilters): string[] {
   return out;
 }
 
+type UtilityDrawerKind = "water" | "electric";
+
 export default function HomePage() {
   const { user, session, loading } = useAuth();
   const filtersUnlocked = !loading && Boolean(session && user);
@@ -46,7 +51,7 @@ export default function HomePage() {
   }>({
     features: [],
     center: null,
-    utilityType: "water",
+    utilityType: DEFAULT_UTILITY_TYPE,
   });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [dataCenterTypeFilters, setDataCenterTypeFilters] = useState<DataCenterTypeFilters>({
@@ -59,18 +64,57 @@ export default function HomePage() {
     distributionCenter: false,
     other: false,
   });
-  /** Bumped when the utility result panel dismisses so AddressSearch can reset the Google input */
-  const [addressFieldResetSignal, setAddressFieldResetSignal] = useState(0);
   const [tipModalOpen, setTipModalOpen] = useState(false);
+  const [aiMapQueryFeatures, setAiMapQueryFeatures] = useState<Feature[]>([]);
 
-  const dismissUtilitySearch = useCallback(() => {
-    setResult((prev) => ({
-      features: [],
-      center: null,
-      utilityType: prev.utilityType ?? "water",
-    }));
-    setSelectedIndex(0);
-    setAddressFieldResetSignal((n) => n + 1);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [utilityDrawer, setUtilityDrawer] = useState<UtilityDrawerKind | null>(null);
+  /** Desktop: user closed the water/electric card without clearing the address search */
+  const [waterUtilityPanelDismissed, setWaterUtilityPanelDismissed] = useState(false);
+  const [electricUtilityPanelDismissed, setElectricUtilityPanelDismissed] = useState(false);
+  const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
+  const [mapUiHydrated, setMapUiHydrated] = useState(false);
+
+  useEffect(() => {
+    const saved = readMapUiPreferences();
+    if (saved) {
+      setDataCenterTypeFilters(saved.dataCenterTypeFilters);
+      setWarehouseTypeFilters(saved.warehouseTypeFilters);
+      setResult((prev) => ({
+        ...prev,
+        utilityType: saved.utilityType,
+      }));
+      setFiltersPanelOpen(saved.filtersOpen);
+    }
+    setMapUiHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mapUiHydrated) return;
+    writeMapUiPreferences({
+      dataCenterTypeFilters,
+      warehouseTypeFilters,
+      utilityType: searchResult.utilityType ?? DEFAULT_UTILITY_TYPE,
+      filtersOpen: filtersPanelOpen,
+    });
+  }, [
+    mapUiHydrated,
+    dataCenterTypeFilters,
+    warehouseTypeFilters,
+    searchResult.utilityType,
+    filtersPanelOpen,
+  ]);
+
+  const closeMobileUtilityDrawer = useCallback(() => {
+    setUtilityDrawer(null);
+  }, []);
+
+  const dismissDesktopWaterPanel = useCallback(() => {
+    setWaterUtilityPanelDismissed(true);
+  }, []);
+
+  const dismissDesktopElectricPanel = useCallback(() => {
+    setElectricUtilityPanelDismissed(true);
   }, []);
 
   const waterResultsActive =
@@ -78,10 +122,61 @@ export default function HomePage() {
   const electricResultsActive =
     searchResult.features.length > 0 && searchResult.utilityType === "electric";
 
-  const visibleDcTypes = visibleCapacityTypesFromFilters(dataCenterTypeFilters, filtersUnlocked);
+  useEffect(() => {
+    if (!waterResultsActive) setWaterUtilityPanelDismissed(false);
+  }, [waterResultsActive]);
+
+  useEffect(() => {
+    if (!electricResultsActive) setElectricUtilityPanelDismissed(false);
+  }, [electricResultsActive]);
+
+  useEffect(() => {
+    if (utilityDrawer === "water" && !waterResultsActive) setUtilityDrawer(null);
+    if (utilityDrawer === "electric" && !electricResultsActive) setUtilityDrawer(null);
+  }, [waterResultsActive, electricResultsActive, utilityDrawer]);
+
+  useEffect(() => {
+    if (!utilityDrawer) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setUtilityDrawer(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [utilityDrawer]);
+
+  const visibleDcTypes = useMemo(
+    () => visibleCapacityTypesFromFilters(dataCenterTypeFilters, filtersUnlocked),
+    [dataCenterTypeFilters, filtersUnlocked]
+  );
+
+  const openMobileSearch = useCallback(() => {
+    setUtilityDrawer(null);
+    setMobileSearchOpen(true);
+  }, []);
+
+  const toggleUtilityDrawer = useCallback((kind: UtilityDrawerKind) => {
+    setMobileSearchOpen(false);
+    setUtilityDrawer((prev) => (prev === kind ? null : kind));
+  }, []);
+
+  const legendProps = useMemo(() => {
+    const showSearchedAddress = Boolean(searchResult.center);
+    if (aiMapQueryFeatures.length > 0) {
+      return {
+        visibleDataCenterCapacityTypes: legendVisibleDcTypesFromAiFeatures(aiMapQueryFeatures),
+        warehouseTypeFilters: legendWarehouseFiltersFromAiFeatures(aiMapQueryFeatures),
+        showSearchedAddress,
+      };
+    }
+    return {
+      visibleDataCenterCapacityTypes: visibleDcTypes,
+      warehouseTypeFilters,
+      showSearchedAddress,
+    };
+  }, [aiMapQueryFeatures, visibleDcTypes, warehouseTypeFilters, searchResult.center]);
 
   return (
-    <main className="h-screen w-screen relative overflow-hidden bg-gray-50">
+    <main className="relative h-screen w-screen overflow-hidden bg-gray-50">
       <SystemMap
         features={searchResult.features}
         center={searchResult.center}
@@ -89,8 +184,18 @@ export default function HomePage() {
         visibleDataCenterCapacityTypes={visibleDcTypes}
         visibleWarehouseGroups={visibleWarehouseGroupsFromFilters(warehouseTypeFilters)}
         dataCenterDetailsUnlocked={filtersUnlocked}
-        utilityType={searchResult.utilityType ?? "water"}
+        utilityType={searchResult.utilityType ?? DEFAULT_UTILITY_TYPE}
+        aiMapQueryFeatures={aiMapQueryFeatures.length > 0 ? aiMapQueryFeatures : null}
       />
+
+      {mobileSearchOpen ? (
+        <button
+          type="button"
+          aria-label="Dismiss search"
+          className="fixed inset-0 z-[33] bg-zinc-900/30 md:hidden"
+          onClick={() => setMobileSearchOpen(false)}
+        />
+      ) : null}
 
       <AddressSearch
         mapPinCenter={searchResult.center}
@@ -105,41 +210,180 @@ export default function HomePage() {
         filtersUnlocked={filtersUnlocked}
         waterResultsActive={waterResultsActive}
         electricResultsActive={electricResultsActive}
-        addressFieldResetSignal={addressFieldResetSignal}
+        aiResultsActive={aiMapQueryFeatures.length > 0}
+        onClearAiMapQuery={() => setAiMapQueryFeatures([])}
+        onAiMapQueryResult={(data) => {
+          if (!data) {
+            setAiMapQueryFeatures([]);
+            return;
+          }
+          setAiMapQueryFeatures(data.features);
+        }}
         onResult={(data) => {
           setResult(data);
           setSelectedIndex(0);
+          setWaterUtilityPanelDismissed(false);
+          setElectricUtilityPanelDismissed(false);
+          const ut = data.utilityType ?? DEFAULT_UTILITY_TYPE;
+          if ((ut === "water" || ut === "electric") && data.features.length > 0) {
+            setAiMapQueryFeatures([]);
+          }
         }}
+        mobileSheetExpanded={mobileSearchOpen}
+        onMobileSheetOpenChange={setMobileSearchOpen}
+        utilityOverlayType={searchResult.utilityType ?? DEFAULT_UTILITY_TYPE}
+        filtersPanelOpen={filtersPanelOpen}
+        onFiltersPanelOpenChange={setFiltersPanelOpen}
       />
 
-      <div className="absolute z-10 bottom-[80px] right-[80px] flex flex-col items-end gap-2">
-        {waterResultsActive && (
+      {/* Mobile: floating legend above safe area — search sheet sits higher (see AddressSearch bottom offset) */}
+      <div className="pointer-events-none fixed bottom-3 left-1/2 z-[22] flex w-[min(calc(100vw-1.5rem),28rem)] -translate-x-1/2 justify-center md:hidden">
+        <div className="pointer-events-auto max-w-full">
+          <MapMarkerLegend {...legendProps} />
+        </div>
+      </div>
+
+      {/* Mobile: open search / filters */}
+      <button
+        type="button"
+        onClick={openMobileSearch}
+        className="fixed bottom-[max(6.75rem,env(safe-area-inset-bottom,0px)+5.5rem)] left-1/2 z-[24] flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/50 bg-white/95 px-5 py-2.5 text-xs font-semibold text-zinc-800 shadow-[0_4px_20px_rgba(0,0,0,0.12)] backdrop-blur-md transition hover:bg-white md:hidden"
+      >
+        <MapPin className="h-4 w-4 shrink-0 text-zinc-500" aria-hidden />
+        Search
+      </button>
+
+      {/* Mobile: utility triggers — upper right (icons match AddressSearch: monochrome Lucide) */}
+      <div className="fixed right-3 top-[max(0.75rem,env(safe-area-inset-top,0px)+0.25rem)] z-[26] flex flex-col gap-2 md:hidden">
+        {electricResultsActive ? (
+          <button
+            type="button"
+            onClick={() => toggleUtilityDrawer("electric")}
+            className={`flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200/90 bg-white/95 text-zinc-900 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white ${
+              utilityDrawer === "electric" ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-transparent" : ""
+            }`}
+            aria-label="Open electric service territory"
+          >
+            <Zap className="h-5 w-5 shrink-0 stroke-[2.25]" aria-hidden />
+          </button>
+        ) : null}
+        {waterResultsActive ? (
+          <button
+            type="button"
+            onClick={() => toggleUtilityDrawer("water")}
+            className={`flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200/90 bg-white/95 text-zinc-900 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white ${
+              utilityDrawer === "water" ? "ring-2 ring-sky-400 ring-offset-2 ring-offset-transparent" : ""
+            }`}
+            aria-label="Open water system and violations"
+          >
+            <Droplets className="h-5 w-5 shrink-0 stroke-[2.25]" aria-hidden />
+          </button>
+        ) : null}
+      </div>
+
+      {utilityDrawer ? (
+        <>
+          <button
+            type="button"
+            aria-label="Dismiss utility panel"
+            className="fixed inset-0 z-[38] bg-zinc-900/25 md:hidden"
+            onClick={() => setUtilityDrawer(null)}
+          />
+          <aside
+            className="fixed inset-y-0 right-0 z-[40] flex w-[min(22rem,calc(100vw-0.5rem))] max-w-full translate-x-0 flex-col border-l border-zinc-200/90 bg-[#FAFAFA] shadow-[-10px_0_36px_rgba(0,0,0,0.12)] md:hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label={utilityDrawer === "water" ? "Water system details" : "Electric territory details"}
+          >
+            <div className="flex shrink-0 items-center justify-between border-b border-zinc-200/80 px-3 py-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                {utilityDrawer === "water" ? "Water system" : "Electric"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setUtilityDrawer(null)}
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-zinc-600 hover:bg-zinc-100"
+              >
+                Close
+              </button>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden p-2">
+              {utilityDrawer === "water" && waterResultsActive ? (
+                <ViolationsWidget
+                  instantReveal
+                  features={searchResult.features}
+                  selectedIndex={selectedIndex}
+                  onSelectIndex={setSelectedIndex}
+                  onDismiss={closeMobileUtilityDrawer}
+                  detailUnlocked={filtersUnlocked}
+                />
+              ) : null}
+              {utilityDrawer === "electric" && electricResultsActive ? (
+                <ElectricProviderWidget
+                  instantReveal
+                  features={searchResult.features}
+                  selectedIndex={selectedIndex}
+                  onSelectIndex={setSelectedIndex}
+                  onDismiss={closeMobileUtilityDrawer}
+                />
+              ) : null}
+            </div>
+          </aside>
+        </>
+      ) : null}
+
+      {/* Mobile: tip / about / account — upper left */}
+      <div className="fixed left-3 top-[max(0.75rem,env(safe-area-inset-top,0px)+0.25rem)] z-[25] flex flex-col gap-2 md:hidden">
+        <button
+          type="button"
+          onClick={() => setTipModalOpen(true)}
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200/90 bg-white/95 text-zinc-900 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white"
+          aria-label="Submit a tip"
+        >
+          <Lightbulb className="h-5 w-5 shrink-0 stroke-[2.25]" aria-hidden />
+        </button>
+        <Link
+          href="/about"
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200/90 bg-white/95 text-zinc-900 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white"
+          aria-label="About this project"
+        >
+          <Info className="h-5 w-5 shrink-0 stroke-[2.25]" aria-hidden />
+        </Link>
+        <Link
+          href={user ? "/account" : "/signup"}
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200/90 bg-white/95 text-zinc-900 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white"
+          aria-label={user ? "Account" : "Sign up for free"}
+        >
+          <UserPlus className="h-5 w-5 shrink-0 stroke-[2.25]" aria-hidden />
+        </Link>
+      </div>
+
+      {/* Desktop: violations + electric + legend */}
+      <div className="absolute bottom-[80px] right-[80px] z-10 hidden flex-col items-end gap-2 md:flex">
+        {waterResultsActive && !waterUtilityPanelDismissed && (
           <ViolationsWidget
             features={searchResult.features}
             selectedIndex={selectedIndex}
             onSelectIndex={setSelectedIndex}
-            onDismiss={dismissUtilitySearch}
+            onDismiss={dismissDesktopWaterPanel}
             detailUnlocked={filtersUnlocked}
           />
         )}
-        {electricResultsActive && (
+        {electricResultsActive && !electricUtilityPanelDismissed && (
           <ElectricProviderWidget
             features={searchResult.features}
             selectedIndex={selectedIndex}
             onSelectIndex={setSelectedIndex}
-            onDismiss={dismissUtilitySearch}
+            onDismiss={dismissDesktopElectricPanel}
           />
         )}
-        <MapMarkerLegend
-          visibleDataCenterCapacityTypes={visibleDcTypes}
-          warehouseTypeFilters={warehouseTypeFilters}
-          showSearchedAddress={Boolean(searchResult.center)}
-        />
+        <MapMarkerLegend {...legendProps} />
       </div>
 
       <DataCenterTipModal open={tipModalOpen} onClose={() => setTipModalOpen(false)} />
 
-      <div className="absolute z-10 bottom-[80px] left-[80px] flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      {/* Desktop: bottom links */}
+      <div className="absolute bottom-[80px] left-[80px] z-10 hidden flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 md:flex">
         <button
           type="button"
           onClick={() => setTipModalOpen(true)}

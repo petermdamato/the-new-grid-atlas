@@ -7,6 +7,7 @@ const COLORS = {
   /** Hyperscaler and Neocloud share this color on the map */
   hyperscaler: "#14b8a6",
   enterprise: "#0f766e",
+  colocation: "#155e75",
   fulfillmentCenter: "#ea580c",
   distributionCenter: "#9a3412",
   otherWarehouse: "#171717",
@@ -24,8 +25,9 @@ function Dot({ color }: { color: string }) {
 }
 
 export interface MapMarkerLegendProps {
-  /** `capacitytype` values the map is allowed to show (from search filters) */
+  /** `capacitytype` values to show in the legend (from filters, or from AI hit properties when AI highlights are active) */
   visibleDataCenterCapacityTypes: string[];
+  /** From filters, or derived from AI warehouse hits when AI highlights are active */
   warehouseTypeFilters: WarehouseTypeFilters;
   /** Search pin is on the map when center is set */
   showSearchedAddress: boolean;
@@ -38,6 +40,7 @@ export default function MapMarkerLegend({
 }: MapMarkerLegendProps) {
   const dc = new Set(visibleDataCenterCapacityTypes);
   const showEnterprise = dc.has("Enterprise");
+  const showColocation = dc.has("Colocation");
   const showHyperscaler = dc.has("Hyperscaler") || dc.has("Neocloud");
   const showFc = warehouseTypeFilters.fulfillmentCenter;
   const showDc = warehouseTypeFilters.distributionCenter;
@@ -45,6 +48,7 @@ export default function MapMarkerLegend({
 
   const rows: { key: string; label: string; color: string }[] = [];
   if (showEnterprise) rows.push({ key: "enterprise", label: "Enterprise data center", color: COLORS.enterprise });
+  if (showColocation) rows.push({ key: "colocation", label: "Colocation data center", color: COLORS.colocation });
   if (showHyperscaler) rows.push({ key: "hyperscaler", label: "Hyperscaler", color: COLORS.hyperscaler });
   if (showFc) rows.push({ key: "fc", label: "Fulfillment center", color: COLORS.fulfillmentCenter });
   if (showDc) rows.push({ key: "dc", label: "Distribution center", color: COLORS.distributionCenter });

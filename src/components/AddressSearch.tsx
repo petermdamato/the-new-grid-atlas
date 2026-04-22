@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import Link from "next/link";
 import { Feature } from "geojson";
 import {
@@ -15,7 +15,12 @@ import {
 } from "lucide-react";
 import Autocomplete from "react-google-autocomplete";
 
+const SHEET_DISMISS_PULL_PX = 96;
+
 export type UtilityType = "water" | "electric" | "off";
+
+/** Default utility overlay for new sessions and invalid persisted values */
+export const DEFAULT_UTILITY_TYPE: UtilityType = "electric";
 
 export type DataCenterTypeFilterKey = "hyperscaler" | "colocation" | "enterprise";
 
@@ -35,19 +40,38 @@ const DC_TYPE_HELP = {
 } as const;
 
 function DataCenterFilterHelp({ id, text }: { id: string; text: string }) {
+  const [touchOpen, setTouchOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!touchOpen) return;
+    const close = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setTouchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [touchOpen]);
+
+  const toggle = useCallback(() => setTouchOpen((o) => !o), []);
+
   return (
-    <div className="group relative shrink-0">
+    <div ref={wrapRef} className="group relative shrink-0">
       <button
         type="button"
-        className="flex h-4 w-4 items-center justify-center rounded-full bg-black text-[9px] font-bold leading-none text-zinc-100 shadow-sm outline-none transition-colors hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA]"
-        aria-label={`${id}: ${text}`}
+        onClick={toggle}
+        className="flex h-4 w-4 items-center justify-center rounded-full bg-black text-[9px] font-bold leading-none text-zinc-100 shadow-sm outline-none transition-colors hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA] md:pointer-events-auto"
+        aria-expanded={touchOpen}
+        aria-label={`${id}: help`}
       >
         ?
       </button>
       <span
         role="tooltip"
-        aria-hidden="true"
-        className="pointer-events-none absolute right-0 top-full z-[100] mt-1.5 w-max max-w-[min(16rem,calc(100vw-6rem))] rounded-md border border-zinc-800 bg-black px-2.5 py-2 text-left text-[10px] font-normal leading-snug text-zinc-100 opacity-0 shadow-lg transition-opacity duration-150 ease-out group-hover:opacity-100 group-focus-within:opacity-100"
+        className={`absolute right-0 top-full z-[100] mt-1.5 w-max max-w-[min(16rem,calc(100vw-6rem))] rounded-md border border-zinc-800 bg-black px-2.5 py-2 text-left text-[10px] font-normal leading-snug text-zinc-100 shadow-lg transition-opacity duration-150 ease-out md:pointer-events-none ${
+          touchOpen ? "opacity-100 max-md:pointer-events-auto" : "opacity-0 max-md:pointer-events-none"
+        } md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100`}
       >
         {text}
       </span>
@@ -65,12 +89,24 @@ interface AddressSearchProps {
   waterResultsActive?: boolean;
   /** True when electric territories are shown */
   electricResultsActive?: boolean;
-  /** Incremented when the violations widget is dismissed to remount the Places input */
-  addressFieldResetSignal?: number;
-  /** Members can use Colocation / Enterprise filters */
+  /** Members can use Enterprise filter; Colocation is visible but not available yet */
   filtersUnlocked?: boolean;
   /** Current map pin from parent — used to keep the pin when turning utility overlay Off */
   mapPinCenter?: [number, number] | null;
+  /** AI map query returned at least one point on the map */
+  aiResultsActive?: boolean;
+  /** Clear violet AI query highlights (parent state) */
+  onClearAiMapQuery?: () => void;
+  /** NL → SQL → DuckDB map hits (signed-in users only) */
+  onAiMapQueryResult?: (data: { features: Feature[]; truncated?: boolean } | null) => void;
+  /** Mobile bottom sheet: expanded state (controlled by parent) */
+  mobileSheetExpanded?: boolean;
+  onMobileSheetOpenChange?: (open: boolean) => void;
+  /** Water / electric / off overlay — persisted by parent */
+  utilityOverlayType: UtilityType;
+  /** Filters accordion open — persisted by parent */
+  filtersPanelOpen: boolean;
+  onFiltersPanelOpenChange: (open: boolean) => void;
 }
 
 export default function AddressSearch({
@@ -81,22 +117,37 @@ export default function AddressSearch({
   onToggleWarehouseType,
   waterResultsActive = false,
   electricResultsActive = false,
-  addressFieldResetSignal = 0,
   filtersUnlocked = false,
   mapPinCenter = null,
+  aiResultsActive = false,
+  onClearAiMapQuery,
+  onAiMapQueryResult,
+  mobileSheetExpanded = false,
+  onMobileSheetOpenChange,
+  utilityOverlayType,
+  filtersPanelOpen,
+  onFiltersPanelOpenChange,
 }: AddressSearchProps) {
   const [address, setAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [utilityType, setUtilityType] = useState<UtilityType>("water");
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [utilityType, setUtilityType] = useState<UtilityType>(utilityOverlayType);
   const [panelMode, setPanelMode] = useState<"address" | "ai">("address");
   const [aiQuery, setAiQuery] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiTruncated, setAiTruncated] = useState(false);
   const [autocompleteKey, setAutocompleteKey] = useState(0);
   const addressInputRef = useRef<HTMLInputElement | null>(null);
   /** Enter runs before Google's `place_changed`; we complete search there or via fallback timer */
   const pendingEnterSearchRef = useRef(false);
   const enterFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Mobile bottom sheet: pull-down dismiss */
+  const [sheetDragY, setSheetDragY] = useState(0);
+  const sheetHandleRef = useRef<HTMLDivElement | null>(null);
+  const sheetPullStartY = useRef(0);
+  const sheetPullDragging = useRef(false);
+  const sheetPullLastDy = useRef(0);
 
   function clearEnterSearchScheduling() {
     pendingEnterSearchRef.current = false;
@@ -111,12 +162,92 @@ export default function AddressSearch({
   }, []);
 
   useEffect(() => {
-    if (addressFieldResetSignal <= 0) return;
-    clearEnterSearchScheduling();
-    setAddress("");
-    setError(null);
-    setAutocompleteKey((k) => k + 1);
-  }, [addressFieldResetSignal]);
+    setUtilityType(utilityOverlayType);
+  }, [utilityOverlayType]);
+
+  useEffect(() => {
+    if (!mobileSheetExpanded || !onMobileSheetOpenChange) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onMobileSheetOpenChange(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileSheetExpanded, onMobileSheetOpenChange]);
+
+  useEffect(() => {
+    if (!mobileSheetExpanded) {
+      setSheetDragY(0);
+      sheetPullDragging.current = false;
+    }
+  }, [mobileSheetExpanded]);
+
+  useEffect(() => {
+    const el = sheetHandleRef.current;
+    if (!el || !onMobileSheetOpenChange) return;
+
+    const endPull = () => {
+      if (!sheetPullDragging.current) return;
+      sheetPullDragging.current = false;
+      const dy = sheetPullLastDy.current;
+      sheetPullLastDy.current = 0;
+      if (dy >= SHEET_DISMISS_PULL_PX) onMobileSheetOpenChange(false);
+      setSheetDragY(0);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (!mobileSheetExpanded) return;
+      sheetPullDragging.current = true;
+      sheetPullStartY.current = e.touches[0].clientY;
+      sheetPullLastDy.current = 0;
+      setSheetDragY(0);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!sheetPullDragging.current || !mobileSheetExpanded) return;
+      const dy = Math.max(0, e.touches[0].clientY - sheetPullStartY.current);
+      sheetPullLastDy.current = dy;
+      if (dy > 0) e.preventDefault();
+      setSheetDragY(dy);
+    };
+
+    const onTouchEnd = () => endPull();
+    const onTouchCancel = () => endPull();
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (!mobileSheetExpanded) return;
+      sheetPullDragging.current = true;
+      sheetPullStartY.current = e.clientY;
+      sheetPullLastDy.current = 0;
+      setSheetDragY(0);
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!sheetPullDragging.current || !mobileSheetExpanded) return;
+      const dy = Math.max(0, e.clientY - sheetPullStartY.current);
+      sheetPullLastDy.current = dy;
+      setSheetDragY(dy);
+    };
+
+    const onMouseUp = () => endPull();
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchcancel", onTouchCancel);
+    el.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchCancel);
+      el.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [mobileSheetExpanded, onMobileSheetOpenChange]);
 
   function getQuery(): string {
     return (address.trim() || addressInputRef.current?.value.trim() || "").trim();
@@ -222,6 +353,64 @@ export default function AddressSearch({
     }
   }
 
+  async function handleAiMapQuery() {
+    if (!onAiMapQueryResult) return;
+    const q = aiQuery.trim();
+    if (!q) return;
+
+    if (!filtersUnlocked) {
+      setAiError("Sign in to run AI map queries.");
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError(null);
+    setAiTruncated(false);
+
+    try {
+      const res = await fetch("/api/ai-map-query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ query: q }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        geojson?: { features?: Feature[] };
+        truncated?: boolean;
+        debugSql?: string;
+        debugWrappedSql?: string;
+      };
+
+      if (data.debugSql != null && data.debugSql !== "") {
+        console.info("[ai-map-query] validated SQL:\n", data.debugSql);
+        if (data.debugWrappedSql) {
+          console.info("[ai-map-query] executed SQL (outer limit):\n", data.debugWrappedSql);
+        }
+      }
+
+      if (!res.ok) {
+        const errMsg = data.error || "AI map query failed";
+        setAiError(errMsg);
+        onAiMapQueryResult(null);
+        return;
+      }
+
+      const feats = Array.isArray(data.geojson?.features) ? data.geojson!.features! : [];
+      onAiMapQueryResult({ features: feats, truncated: Boolean(data.truncated) });
+      setAiTruncated(Boolean(data.truncated));
+      if (feats.length === 0) {
+        setAiError("No rows matched your question (try broader filters).");
+      }
+    } catch {
+      const errMsg = "Failed to connect to the server.";
+      setAiError(errMsg);
+      onAiMapQueryResult(null);
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   function switchUtilityType(next: UtilityType) {
     if (next === utilityType) return;
     setUtilityType(next);
@@ -238,17 +427,53 @@ export default function AddressSearch({
     }
   }
 
+  const mobileSheetOpen = Boolean(mobileSheetExpanded);
+  const sheetDragStyle: CSSProperties | undefined =
+    mobileSheetOpen && sheetDragY > 0 ? { transform: `translateY(${sheetDragY}px)` } : undefined;
+
+  const rootClass =
+    "select-none font-jakarta overflow-x-hidden bg-[#FAFAFA] " +
+    (sheetDragY > 0 ? "max-md:transition-none " : "") +
+    "max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-[34] max-md:w-full max-md:rounded-t-none max-md:shadow-[0_-8px_32px_rgba(0,0,0,0.14)] max-md:max-h-[min(92dvh,100dvh)] max-md:overflow-y-auto max-md:pb-[env(safe-area-inset-bottom,0px)] max-md:transition-transform max-md:duration-300 max-md:ease-out " +
+    (mobileSheetOpen
+      ? "max-md:translate-y-0 max-md:pointer-events-auto "
+      : "max-md:translate-y-[calc(100%+1rem)] max-md:pointer-events-none ") +
+    "md:absolute md:left-[80px] md:top-[80px] md:z-[20] md:w-[min(420px,calc(100vw-2.5rem))] md:max-h-[calc(100dvh-88px)] md:translate-y-0 md:pointer-events-auto md:overflow-y-auto md:rounded-2xl md:shadow-[0_8px_30px_rgba(0,0,0,0.12)]";
+
   return (
-    <div className="absolute z-10 top-[80px] left-[80px] w-[420px] select-none font-jakarta overflow-visible rounded-2xl bg-[#FAFAFA] shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-      {/* <div className="px-3 pt-3">
+    <div className={rootClass} style={sheetDragStyle}>
+      {onMobileSheetOpenChange ? (
+        <div className="sticky top-0 z-[3] shrink-0 bg-[#FAFAFA] md:hidden">
+          <div
+            ref={sheetHandleRef}
+            className="flex w-full cursor-grab touch-none flex-col items-center justify-center gap-1.5 py-3 active:cursor-grabbing"
+            aria-label="Drag down to close"
+          >
+            <span className="sr-only">Drag down to close search and filters</span>
+            <div className="h-1.5 w-11 shrink-0 rounded-full bg-zinc-300" aria-hidden />
+          </div>
+          <div className="flex shrink-0 items-center justify-between border-b border-zinc-200/90 px-4 pb-3 pt-0">
+            <span className="text-xs font-semibold tracking-wide text-zinc-800">Search &amp; filters</span>
+            <button
+              type="button"
+              onClick={() => onMobileSheetOpenChange(false)}
+              className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800"
+              aria-label="Close search and filters"
+            >
+              <X className="h-5 w-5" strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <div className="z-[1] bg-[#FAFAFA] px-3 pb-1 pt-3 max-md:static max-md:pt-2 md:sticky md:top-0">
         {panelMode === "address" ? (
           <button
             type="button"
             onClick={() => setPanelMode("ai")}
             className="flex h-7 w-full min-w-0 items-center justify-center rounded-lg bg-gradient-to-r from-[#8ebfbb] to-[#b5dece] px-3 text-[10px] font-semibold leading-none tracking-wide text-zinc-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] transition-[filter] duration-200 hover:brightness-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8ebfbb]/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA]"
-            title="You can now query our data with AI (for the irony)"
+            title="You can now query our data with AI (BETA)"
           >
-            <span className="min-w-0 flex-1 truncate text-center">You can now query our data with AI (for the irony)</span>
+            <span className="min-w-0 flex-1 truncate text-center">You can now query our data with AI (BETA)</span>
           </button>
         ) : (
           <button
@@ -260,28 +485,77 @@ export default function AddressSearch({
             <span className="min-w-0 flex-1 truncate text-center">Back to address search</span>
           </button>
         )}
-      </div> */}
+      </div>
 
       {panelMode === "ai" ? (
-        <div className="px-5 pb-5 pt-3">
+        <form
+          className="flex flex-col gap-3 px-5 pb-5 pt-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!aiLoading) void handleAiMapQuery();
+          }}
+        >
           <input
             type="text"
             value={aiQuery}
             onChange={(e) => setAiQuery(e.target.value)}
             placeholder="Ask anything about the map data…"
             className="h-11 w-full rounded-2xl border border-zinc-200/90 bg-white px-4 text-xs text-zinc-800 shadow-[0_4px_14px_rgba(0,0,0,0.06)] outline-none ring-zinc-300 placeholder:text-zinc-400 focus:border-violet-300 focus:ring-2 focus:ring-violet-200/60"
-            aria-label="Natural language query (coming soon)"
+            aria-label="Natural language map query"
+            disabled={aiLoading}
           />
-          <p className="mt-4 text-xs leading-relaxed text-zinc-600">
-            You can ask any question of our data in natural language and get back a response on the map. Unsure
-            what to search? Try:{" "}
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={aiLoading || !aiQuery.trim()}
+              className="group flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white shadow-md transition-all duration-150 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-zinc-900"
+            >
+              {aiLoading ? (
+                <>
+                  Searching
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+                </>
+              ) : (
+                <>
+                  Run Query
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden />
+                </>
+              )}
+            </button>
+          </div>
+          {aiResultsActive && onClearAiMapQuery ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClearAiMapQuery();
+                setAiError(null);
+                setAiTruncated(false);
+              }}
+              className="self-start rounded-lg px-1 py-1 text-[11px] font-semibold text-zinc-600 underline-offset-2 hover:text-zinc-900 hover:underline"
+            >
+              Clear map highlights
+            </button>
+          ) : null}
+          {aiTruncated ? (
+            <p className="text-[11px] font-medium text-amber-800/90">
+              Results capped at 500 rows — refine your question for a narrower set.
+            </p>
+          ) : null}
+          {aiError ? (
+            <div className="rounded-lg border border-red-100 bg-red-50/90 px-3 py-2 text-xs font-medium text-red-700">
+              {aiError}
+            </div>
+          ) : null}
+          <p className="text-xs leading-relaxed text-zinc-600">
+            Ask in plain language; we generate read-only SQL over warehouse and data center tables and show hits as
+            violet dots. Example:{" "}
             <span className="font-medium text-zinc-800">
-              Show me a county with a hyperscaler and an e-commerce fulfillment center.
+              List data centers in Idaho with capacity type Hyperscaler.
             </span>
           </p>
-        </div>
+        </form>
       ) : (
-        <div className="px-5 pb-5 pt-3">
+        <div className="px-5 pb-5 pt-2">
       <div className="mb-3">
         <span className="block text-[10px] font-semibold tracking-[0.12em] text-zinc-600 uppercase drop-shadow-sm">
           Search by address
@@ -375,18 +649,6 @@ export default function AddressSearch({
         <div className="flex gap-0.5 rounded-md bg-zinc-200/60 p-0.5">
           <button
             type="button"
-            onClick={() => switchUtilityType("water")}
-            className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-bold transition-colors duration-200 ${
-              utilityType === "water"
-                ? "bg-white text-blue-600 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-700"
-            }`}
-          >
-            <Droplets className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="truncate">Water</span>
-          </button>
-          <button
-            type="button"
             onClick={() => switchUtilityType("electric")}
             className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-bold transition-colors duration-200 ${
               utilityType === "electric"
@@ -399,6 +661,18 @@ export default function AddressSearch({
           </button>
           <button
             type="button"
+            onClick={() => switchUtilityType("water")}
+            className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-bold transition-colors duration-200 ${
+              utilityType === "water"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-700"
+            }`}
+          >
+            <Droplets className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">Water</span>
+          </button>
+          <button
+            type="button"
             onClick={() => switchUtilityType("off")}
             className={`flex min-w-0 flex-1 items-center justify-center rounded px-2 py-1 text-[11px] font-bold transition-colors duration-200 ${
               utilityType === "off"
@@ -406,7 +680,7 @@ export default function AddressSearch({
                 : "text-zinc-500 hover:text-zinc-700"
             }`}
           >
-            Off
+            None
           </button>
         </div>
       </div>
@@ -414,20 +688,20 @@ export default function AddressSearch({
       <div className="mt-5 pt-5 border-t border-zinc-200/90">
         <button
           type="button"
-          onClick={() => setFiltersOpen((o) => !o)}
-          aria-expanded={filtersOpen}
+          onClick={() => onFiltersPanelOpenChange(!filtersPanelOpen)}
+          aria-expanded={filtersPanelOpen}
           className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg py-1 text-left outline-none ring-zinc-400 focus-visible:ring-2"
         >
           <span className="text-[10px] font-semibold tracking-[0.12em] text-zinc-600 uppercase drop-shadow-sm">
             Filters
           </span>
           <ChevronDown
-            className={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 ${filtersOpen ? "rotate-180" : ""}`}
+            className={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 ${filtersPanelOpen ? "rotate-180" : ""}`}
             aria-hidden
           />
         </button>
 
-        {filtersOpen && (
+        {filtersPanelOpen && (
           <>
             <h3 className="mt-3 text-[10px] font-semibold tracking-[0.1em] text-zinc-500 uppercase">
               Data centers
@@ -447,7 +721,7 @@ export default function AddressSearch({
               </div>
               <div className="flex items-start gap-1">
                 <div
-                  className={`relative min-w-0 flex-1 rounded-lg ${!filtersUnlocked ? "min-h-[80px]" : ""}`}
+                  className={`relative min-w-0 flex-1 rounded-lg ${!filtersUnlocked ? "min-h-[52px]" : ""}`}
                 >
                   <div
                     className={
@@ -465,20 +739,6 @@ export default function AddressSearch({
                           className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-zinc-300 text-teal-600 focus:ring-teal-500/30"
                         />
                         Enterprise
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex min-w-0 flex-1 cursor-not-allowed items-center gap-2.5 text-xs font-medium text-zinc-500">
-                        <input
-                          type="checkbox"
-                          checked={false}
-                          disabled
-                          className="h-3.5 w-3.5 shrink-0 cursor-not-allowed rounded border-zinc-200 text-blue-600 opacity-60"
-                        />
-                        <span>Colocation</span>
-                        <span className="rounded bg-zinc-200/80 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-zinc-500">
-                          Coming soon
-                        </span>
                       </label>
                     </div>
                   </div>
@@ -500,14 +760,30 @@ export default function AddressSearch({
                 {filtersUnlocked ? (
                   <div className="flex shrink-0 flex-col gap-2.5 self-start pt-px">
                     <DataCenterFilterHelp id="Enterprise data center" text={DC_TYPE_HELP.enterprise} />
-                    <DataCenterFilterHelp id="Colocation data center" text={DC_TYPE_HELP.colocation} />
                   </div>
                 ) : null}
+              </div>
+              <div className="flex items-center gap-1">
+                {/* Colocation is also excluded from AI map hits — keep in sync with `hold-out-from-ai-map.ts` */}
+                <label className="flex min-w-0 flex-1 cursor-not-allowed items-center gap-2 text-xs font-medium text-zinc-500">
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    disabled
+                    aria-disabled="true"
+                    className="h-3.5 w-3.5 shrink-0 cursor-not-allowed rounded border-zinc-200 text-sky-700 opacity-60"
+                  />
+                  <span>Colocation</span>
+                  <span className="rounded bg-zinc-200/80 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-zinc-500">
+                    Coming soon
+                  </span>
+                </label>
+                <DataCenterFilterHelp id="Colocation data center" text={DC_TYPE_HELP.colocation} />
               </div>
             </div>
 
             <h3 className="mt-3 text-[10px] font-semibold tracking-[0.1em] text-zinc-500 uppercase">
-              Amazon Warehouses
+              Warehouses (Walmart and Amazon)
             </h3>
             <div
               className={`relative mt-2.5 rounded-lg ${!filtersUnlocked ? "min-h-[58px]" : ""}`}
