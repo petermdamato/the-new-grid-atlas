@@ -721,7 +721,7 @@ export default function AddressSearch({
               </div>
               <div className="flex items-start gap-1">
                 <div
-                  className={`relative min-w-0 flex-1 rounded-lg ${!filtersUnlocked ? "min-h-[5.75rem]" : ""}`}
+                  className={`relative min-w-0 flex-1 rounded-lg ${!filtersUnlocked ? "min-h-[3.75rem]" : ""}`}
                 >
                   <div
                     className={
@@ -759,7 +759,7 @@ export default function AddressSearch({
                     </div>
                   </div>
                   {!filtersUnlocked && (
-                    <div className="pointer-events-auto absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-white/55 px-3 py-2 text-center backdrop-blur-[2px]">
+                    <div className="pointer-events-auto absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg px-3 py-2 text-center">
                       <KeyRound className="h-5 w-5 text-zinc-500" aria-hidden />
                       <p className="text-[10px] font-semibold leading-snug text-zinc-800">
                         <Link
@@ -829,7 +829,7 @@ export default function AddressSearch({
                 </div>
               </div>
               {!filtersUnlocked && (
-                <div className="pointer-events-auto absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-white/55 px-3 py-2 text-center backdrop-blur-[2px]">
+                <div className="pointer-events-auto absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg px-3 py-2 text-center">
                   <KeyRound className="h-5 w-5 text-zinc-500" aria-hidden />
                   <p className="text-[10px] font-semibold leading-snug text-zinc-800">
                   <Link
