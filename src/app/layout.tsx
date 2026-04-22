@@ -20,8 +20,12 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Water System Explorer",
+  title:
+    "The New Grid | Examine the impacts of data centers, e-commerce shipping hubs and more on your life",
   description: "Explore community water systems",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import AddressSearch, {
   DataCenterTypeFilters,
+  DEFAULT_UTILITY_TYPE,
   UtilityType,
   WarehouseTypeFilters,
 } from "@/components/AddressSearch";
@@ -50,7 +51,7 @@ export default function HomePage() {
   }>({
     features: [],
     center: null,
-    utilityType: "water",
+    utilityType: DEFAULT_UTILITY_TYPE,
   });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [dataCenterTypeFilters, setDataCenterTypeFilters] = useState<DataCenterTypeFilters>({
@@ -91,7 +92,7 @@ export default function HomePage() {
     writeMapUiPreferences({
       dataCenterTypeFilters,
       warehouseTypeFilters,
-      utilityType: searchResult.utilityType ?? "water",
+      utilityType: searchResult.utilityType ?? DEFAULT_UTILITY_TYPE,
       filtersOpen: filtersPanelOpen,
     });
   }, [
@@ -106,7 +107,7 @@ export default function HomePage() {
     setResult((prev) => ({
       features: [],
       center: null,
-      utilityType: prev.utilityType ?? "water",
+      utilityType: prev.utilityType ?? DEFAULT_UTILITY_TYPE,
     }));
     setSelectedIndex(0);
     setAddressFieldResetSignal((n) => n + 1);
@@ -159,7 +160,7 @@ export default function HomePage() {
         visibleDataCenterCapacityTypes={visibleDcTypes}
         visibleWarehouseGroups={visibleWarehouseGroupsFromFilters(warehouseTypeFilters)}
         dataCenterDetailsUnlocked={filtersUnlocked}
-        utilityType={searchResult.utilityType ?? "water"}
+        utilityType={searchResult.utilityType ?? DEFAULT_UTILITY_TYPE}
         aiMapQueryFeatures={aiMapQueryFeatures.length > 0 ? aiMapQueryFeatures : null}
       />
 
@@ -198,14 +199,14 @@ export default function HomePage() {
         onResult={(data) => {
           setResult(data);
           setSelectedIndex(0);
-          const ut = data.utilityType ?? "water";
+          const ut = data.utilityType ?? DEFAULT_UTILITY_TYPE;
           if ((ut === "water" || ut === "electric") && data.features.length > 0) {
             setAiMapQueryFeatures([]);
           }
         }}
         mobileSheetExpanded={mobileSearchOpen}
         onMobileSheetOpenChange={setMobileSearchOpen}
-        utilityOverlayType={searchResult.utilityType ?? "water"}
+        utilityOverlayType={searchResult.utilityType ?? DEFAULT_UTILITY_TYPE}
         filtersPanelOpen={filtersPanelOpen}
         onFiltersPanelOpenChange={setFiltersPanelOpen}
       />

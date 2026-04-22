@@ -19,6 +19,9 @@ const SHEET_DISMISS_PULL_PX = 96;
 
 export type UtilityType = "water" | "electric" | "off";
 
+/** Default utility overlay for new sessions and invalid persisted values */
+export const DEFAULT_UTILITY_TYPE: UtilityType = "electric";
+
 export type DataCenterTypeFilterKey = "hyperscaler" | "colocation" | "enterprise";
 
 export type DataCenterTypeFilters = Record<DataCenterTypeFilterKey, boolean>;
@@ -479,9 +482,9 @@ export default function AddressSearch({
             type="button"
             onClick={() => setPanelMode("ai")}
             className="flex h-7 w-full min-w-0 items-center justify-center rounded-lg bg-gradient-to-r from-[#8ebfbb] to-[#b5dece] px-3 text-[10px] font-semibold leading-none tracking-wide text-zinc-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] transition-[filter] duration-200 hover:brightness-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8ebfbb]/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA]"
-            title="You can now query our data with AI (for the irony)"
+            title="You can now query our data with AI (BETA)"
           >
-            <span className="min-w-0 flex-1 truncate text-center">You can now query our data with AI (for the irony)</span>
+            <span className="min-w-0 flex-1 truncate text-center">You can now query our data with AI (BETA)</span>
           </button>
         ) : (
           <button
@@ -657,18 +660,6 @@ export default function AddressSearch({
         <div className="flex gap-0.5 rounded-md bg-zinc-200/60 p-0.5">
           <button
             type="button"
-            onClick={() => switchUtilityType("water")}
-            className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-bold transition-colors duration-200 ${
-              utilityType === "water"
-                ? "bg-white text-blue-600 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-700"
-            }`}
-          >
-            <Droplets className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="truncate">Water</span>
-          </button>
-          <button
-            type="button"
             onClick={() => switchUtilityType("electric")}
             className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-bold transition-colors duration-200 ${
               utilityType === "electric"
@@ -681,6 +672,18 @@ export default function AddressSearch({
           </button>
           <button
             type="button"
+            onClick={() => switchUtilityType("water")}
+            className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-bold transition-colors duration-200 ${
+              utilityType === "water"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-700"
+            }`}
+          >
+            <Droplets className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">Water</span>
+          </button>
+          <button
+            type="button"
             onClick={() => switchUtilityType("off")}
             className={`flex min-w-0 flex-1 items-center justify-center rounded px-2 py-1 text-[11px] font-bold transition-colors duration-200 ${
               utilityType === "off"
@@ -688,7 +691,7 @@ export default function AddressSearch({
                 : "text-zinc-500 hover:text-zinc-700"
             }`}
           >
-            Off
+            None
           </button>
         </div>
       </div>
@@ -786,7 +789,7 @@ export default function AddressSearch({
             </div>
 
             <h3 className="mt-3 text-[10px] font-semibold tracking-[0.1em] text-zinc-500 uppercase">
-              Amazon Warehouses
+              Warehouses (Walmart and Amazon)
             </h3>
             <div
               className={`relative mt-2.5 rounded-lg ${!filtersUnlocked ? "min-h-[58px]" : ""}`}

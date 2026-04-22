@@ -16,7 +16,7 @@ import type { MapMouseEvent } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import * as turf from "@turf/turf";
 import { Feature, FeatureCollection } from "geojson";
-import type { UtilityType } from "@/components/AddressSearch";
+import { DEFAULT_UTILITY_TYPE, type UtilityType } from "@/components/AddressSearch";
 import { facilityUrlSlugForFeature, warehouseStreetHeading } from "@/lib/facility-address-slug";
 import { DATA_CENTER_GEOJSON_URL } from "@/lib/facility-dataset-url";
 
@@ -106,7 +106,7 @@ export default function SystemMap({
   visibleDataCenterCapacityTypes,
   visibleWarehouseGroups,
   dataCenterDetailsUnlocked,
-  utilityType = "water",
+  utilityType = DEFAULT_UTILITY_TYPE,
   aiMapQueryFeatures = null,
 }: SystemMapProps) {
   const router = useRouter();

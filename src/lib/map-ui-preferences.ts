@@ -1,4 +1,9 @@
-import type { DataCenterTypeFilters, UtilityType, WarehouseTypeFilters } from "@/components/AddressSearch";
+import {
+  DEFAULT_UTILITY_TYPE,
+  type DataCenterTypeFilters,
+  type UtilityType,
+  type WarehouseTypeFilters,
+} from "@/components/AddressSearch";
 
 const STORAGE_KEY = "water-system-explorer:map-ui:v1";
 
@@ -53,7 +58,9 @@ export function readMapUiPreferences(): MapUiPreferencesV1 | null {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const utilityType: UtilityType = isUtilityType(parsed.utilityType) ? parsed.utilityType : "water";
+    const utilityType: UtilityType = isUtilityType(parsed.utilityType)
+      ? parsed.utilityType
+      : DEFAULT_UTILITY_TYPE;
     return {
       dataCenterTypeFilters: mergeDc(parsed.dataCenterTypeFilters),
       warehouseTypeFilters: mergeWh(parsed.warehouseTypeFilters),
