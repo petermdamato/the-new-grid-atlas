@@ -435,6 +435,9 @@ export default function SystemMap({
     return { type: "FeatureCollection", features: aiMapQueryFeatures };
   }, [aiMapQueryFeatures]);
 
+  /** De-emphasize base facility dots while AI query hits are shown */
+  const aiDimBaseFacilityOpacity = aiMapQueryFc != null && aiMapQueryFc.features.length > 0 ? 0.4 : null;
+
   const interactiveIds = useMemo(() => {
     const ids: string[] = [];
     if (aiMapQueryFc?.features.length) ids.push("ai-map-query-circle");
@@ -531,7 +534,7 @@ export default function SystemMap({
                   "#14b8a6",
                   "#5c7c78",
                 ],
-                "circle-opacity": 0.88,
+                "circle-opacity": aiDimBaseFacilityOpacity ?? 0.88,
                 "circle-stroke-width": 1.5,
                 "circle-stroke-color": "#ffffff",
               }}
@@ -557,7 +560,7 @@ export default function SystemMap({
                   "#171717",
                   "#171717",
                 ],
-                "circle-opacity": 0.92,
+                "circle-opacity": aiDimBaseFacilityOpacity ?? 0.92,
                 "circle-stroke-width": 1.5,
                 "circle-stroke-color": "#ffffff",
               }}
@@ -630,7 +633,7 @@ export default function SystemMap({
           >
             <div
               className={`relative pr-2 text-left font-jakarta ${
-                mobileFacilityTooltipOpen ? "border border-zinc-200/90 pl-2 pt-10" : "p-1 pr-2 pt-1"
+                mobileFacilityTooltipOpen ? "pl-2 pt-10" : "p-1 pr-2 pt-1"
               }`}
             >
               {mobileFacilityTooltipOpen ? (
@@ -676,12 +679,12 @@ export default function SystemMap({
                     mobileFacilityTooltipOpen && hoverDc.facilityHref ? (
                       <Link
                         href={hoverDc.facilityHref}
-                        className="mt-3 inline-block text-[12px] font-bold tracking-wide text-sky-700 underline decoration-sky-400 underline-offset-2 [font-variant:small-caps] hover:text-sky-900"
+                        className="facility-popup-link mt-3 inline-block text-[12px] font-bold text-sky-700 underline decoration-sky-400 underline-offset-2 hover:text-sky-900"
                       >
                         Open facility page
                       </Link>
                     ) : (
-                      <div className="mt-3 inline-block text-[12px] font-bold tracking-wide text-zinc-800 [font-variant:small-caps]">
+                      <div className="facility-popup-link mt-3 inline-block text-[12px] font-bold text-zinc-800">
                         click to open facility page
                       </div>
                     )

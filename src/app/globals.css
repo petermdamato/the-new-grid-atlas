@@ -142,6 +142,12 @@ a {
   border-radius: 12px !important;
 }
 
+/* Facility popup: reliable small caps (Tailwind arbitrary font-variant can be flaky on links) */
+.facility-popup-link {
+  font-variant: all-small-caps;
+  letter-spacing: 0.06em;
+}
+
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;
