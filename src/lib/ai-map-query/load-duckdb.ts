@@ -183,6 +183,47 @@ function looksLikeUuid(s: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
 }
 
+/** id → capacitytype from the same GeoJSON DuckDB loads (NL→SQL often omits `capacity_type`). */
+let dataCenterCapacityById: Map<string, string> | null = null;
+
+function getDataCenterCapacityById(): Map<string, string> {
+  if (dataCenterCapacityById) return dataCenterCapacityById;
+  const geoPath = path.join(process.cwd(), "public", "data_centers.geojson");
+  const fc = JSON.parse(fs.readFileSync(geoPath, "utf8")) as FeatureCollection;
+  const m = new Map<string, string>();
+  for (const f of fc.features) {
+    const p = (f.properties ?? {}) as Record<string, unknown>;
+    const id = p.id != null ? String(p.id).trim() : "";
+    if (!id) continue;
+    const ct = p.capacitytype != null ? String(p.capacitytype).trim() : "";
+    m.set(id, ct);
+  }
+  dataCenterCapacityById = m;
+  return m;
+}
+
+function resolveDataCenterCapacityType(row: Record<string, unknown>, idStr: string): string {
+  if (row.capacity_type != null && String(row.capacity_type).trim() !== "") {
+    return String(row.capacity_type).trim();
+  }
+  if (row.capacitytype != null && String(row.capacitytype).trim() !== "") {
+    return String(row.capacitytype).trim();
+  }
+  const idCandidates = [
+    idStr,
+    row.dc_id != null ? String(row.dc_id) : "",
+    row.data_center_id != null ? String(row.data_center_id) : "",
+  ]
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const byId = getDataCenterCapacityById();
+  for (const cand of idCandidates) {
+    const t = byId.get(cand);
+    if (t) return t;
+  }
+  return "";
+}
+
 /**
  * Map rows (with longitude/latitude) to Point features with properties shaped like the main
  * facility layers so popups and facility navigation behave consistently.
@@ -244,7 +285,7 @@ export function aiQueryRowsToMapFeatures(rows: Record<string, unknown>[]): Featu
             ? String(row.address)
             : "";
       props.postal = row.postal != null ? String(row.postal) : "";
-      props.capacitytype = row.capacity_type != null ? String(row.capacity_type) : "";
+      props.capacitytype = resolveDataCenterCapacityType(row, idStr);
       props.companyName =
         row.data_center_company != null
           ? String(row.data_center_company)
