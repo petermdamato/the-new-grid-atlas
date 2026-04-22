@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["duckdb"],
   // Keep huge GeoJSON out of the serverless bundle when deployed (e.g. Vercel).
   // At runtime set BOUNDARIES_BASE_URL to a public R2 (or other HTTPS) base.
   outputFileTracingExcludes: {
@@ -12,7 +11,15 @@ const nextConfig: NextConfig = {
   },
   // DuckDB loads these with fs at runtime — ensure Vercel / Next trace copies them into the function bundle.
   outputFileTracingIncludes: {
-    "/app/api/ai-map-query": ["./public/amazon_warehouses.geojson", "./public/data_centers.geojson"],
+    "/app/api/ai-map-query": [
+      "./public/amazon_warehouses.geojson",
+      "./public/data_centers.geojson",
+      "./data/zcta_centroids.csv",
+      "./node_modules/@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm",
+      "./node_modules/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
+      "./node_modules/@duckdb/duckdb-wasm/dist/duckdb-node-mvp.worker.cjs",
+      "./node_modules/@duckdb/duckdb-wasm/dist/duckdb-node-eh.worker.cjs",
+    ],
   },
 };
 

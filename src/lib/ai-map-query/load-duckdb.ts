@@ -1,11 +1,59 @@
-import duckdb from "duckdb";
 import fs from "fs";
-import os from "os";
 import path from "path";
 import type { Feature, FeatureCollection } from "geojson";
+import {
+  createDuckDB,
+  DuckDBAccessMode,
+  NODE_RUNTIME,
+  VoidLogger,
+  type DuckDBConnection,
+} from "@/lib/ai-map-query/duckdb-wasm-node";
 
-function sqlStringLiteral(p: string): string {
-  return `'${p.replace(/'/g, "''")}'`;
+type ArrowResultTable = ReturnType<DuckDBConnection["query"]>;
+
+type DuckWasmBindings = Awaited<ReturnType<typeof createDuckDB>>;
+
+function wasmBundles() {
+  const wasmDir = path.join(process.cwd(), "node_modules", "@duckdb", "duckdb-wasm", "dist");
+  return {
+    mvp: {
+      mainModule: path.join(wasmDir, "duckdb-mvp.wasm"),
+      mainWorker: path.join(wasmDir, "duckdb-node-mvp.worker.cjs"),
+    },
+    eh: {
+      mainModule: path.join(wasmDir, "duckdb-eh.wasm"),
+      mainWorker: path.join(wasmDir, "duckdb-node-eh.worker.cjs"),
+    },
+  };
+}
+
+function jsonSerializeValue(v: unknown): unknown {
+  if (typeof v === "bigint") {
+    const n = Number(v);
+    return Number.isSafeInteger(n) ? n : v.toString();
+  }
+  if (v instanceof Uint8Array) return Buffer.from(v).toString("base64");
+  if (v instanceof Date) return v.toISOString();
+  if (Array.isArray(v)) return v.map(jsonSerializeValue);
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(o)) out[k] = jsonSerializeValue(o[k]);
+    return out;
+  }
+  return v;
+}
+
+/** Convert an Arrow result table to plain rows for the GeoJSON mapper. */
+export function arrowTableToRows(table: ArrowResultTable): Record<string, unknown>[] {
+  const raw = table.toArray() as unknown[];
+  const rows: Record<string, unknown>[] = [];
+  for (const entry of raw) {
+    if (entry != null && typeof entry === "object" && !Array.isArray(entry)) {
+      rows.push(jsonSerializeValue(entry) as Record<string, unknown>);
+    }
+  }
+  return rows;
 }
 
 function flattenWarehouses(fc: FeatureCollection): Record<string, unknown>[] {
@@ -54,28 +102,18 @@ function flattenDataCenters(fc: FeatureCollection): Record<string, unknown>[] {
   });
 }
 
-export function runDuckDbAll(conn: duckdb.Connection, sql: string): Promise<Record<string, unknown>[]> {
-  return new Promise((resolve, reject) => {
-    conn.all(sql, (err: Error | null, rows: unknown) => {
-      if (err) reject(err);
-      else resolve((rows as Record<string, unknown>[]) ?? []);
-    });
-  });
+export function runDuckDbAll(conn: DuckDBConnection, sql: string): Promise<Record<string, unknown>[]> {
+  return Promise.resolve(arrowTableToRows(conn.query(sql)));
 }
 
-export function runDuckDbExec(conn: duckdb.Connection, sql: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    conn.run(sql, (err: Error | null) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+export function runDuckDbExec(conn: DuckDBConnection, sql: string): Promise<void> {
+  conn.query(sql);
+  return Promise.resolve();
 }
 
 export type AiMapDuckDbContext = {
-  conn: duckdb.Connection;
-  db: duckdb.Database;
-  tmpPaths: string[];
+  conn: DuckDBConnection;
+  bindings: DuckWasmBindings;
   close: () => void;
 };
 
@@ -90,13 +128,19 @@ CREATE OR REPLACE MACRO haversine_km(lat1, lon1, lat2, lon2) AS (
 `.trim();
 
 /**
- * In-memory DuckDB with allowlisted tables `warehouses`, `data_centers`, and optional `zip_centroids`
+ * In-memory DuckDB (WASM) with allowlisted tables `warehouses`, `data_centers`, and optional `zip_centroids`
  * (from `data/zcta_centroids.csv` when present), plus a `haversine_km` macro for spherical distance.
  */
 export async function createAiMapDuckDbContext(): Promise<AiMapDuckDbContext> {
-  const db = new duckdb.Database(":memory:");
-  const conn = db.connect();
-  const tmpPaths: string[] = [];
+  const logger = new VoidLogger();
+  const bindings = await createDuckDB(wasmBundles(), logger, NODE_RUNTIME);
+  await bindings.instantiate();
+  bindings.open({
+    path: ":memory:",
+    accessMode: DuckDBAccessMode.READ_WRITE,
+  });
+  const conn = bindings.connect();
+  await runDuckDbExec(conn, `PRAGMA threads=2`);
 
   const warehousesPath = path.join(process.cwd(), "public", "amazon_warehouses.geojson");
   const dataCentersPath = path.join(process.cwd(), "public", "data_centers.geojson");
@@ -107,40 +151,31 @@ export async function createAiMapDuckDbContext(): Promise<AiMapDuckDbContext> {
   const wRows = flattenWarehouses(wFc);
   const dRows = flattenDataCenters(dFc);
 
-  const stamp = `${process.pid}-${Date.now()}`;
-  const tmpW = path.join(os.tmpdir(), `ai-map-w-${stamp}.json`);
-  const tmpD = path.join(os.tmpdir(), `ai-map-d-${stamp}.json`);
-  tmpPaths.push(tmpW, tmpD);
-
-  fs.writeFileSync(tmpW, JSON.stringify(wRows), "utf8");
-  fs.writeFileSync(tmpD, JSON.stringify(dRows), "utf8");
-
-  const wPathSql = sqlStringLiteral(tmpW.replace(/\\/g, "/"));
-  const dPathSql = sqlStringLiteral(tmpD.replace(/\\/g, "/"));
-
-  await runDuckDbExec(conn, `PRAGMA threads=2`);
-  await runDuckDbExec(
-    conn,
-    `CREATE TABLE warehouses AS SELECT * FROM read_json_auto(${wPathSql})`
-  );
-  await runDuckDbExec(
-    conn,
-    `CREATE TABLE data_centers AS SELECT * FROM read_json_auto(${dPathSql})`
-  );
+  bindings.registerFileText("__ai_map_warehouses.json", JSON.stringify(wRows));
+  bindings.registerFileText("__ai_map_data_centers.json", JSON.stringify(dRows));
+  conn.insertJSONFromPath("__ai_map_warehouses.json", { schema: "main", name: "warehouses" });
+  conn.insertJSONFromPath("__ai_map_data_centers.json", { schema: "main", name: "data_centers" });
 
   await runDuckDbExec(conn, HAVERSINE_KM_MACRO);
 
   const zctaCsvPath = path.join(process.cwd(), "data", "zcta_centroids.csv");
   if (fs.existsSync(zctaCsvPath)) {
-    const zPathSql = sqlStringLiteral(zctaCsvPath.replace(/\\/g, "/"));
+    const csvText = fs.readFileSync(zctaCsvPath, "utf8");
+    bindings.registerFileText("__ai_map_zcta.csv", csvText);
+    conn.insertCSVFromPath("__ai_map_zcta.csv", {
+      schema: "main",
+      name: "__zcta_raw",
+      header: true,
+    });
     await runDuckDbExec(
       conn,
       `CREATE TABLE zip_centroids AS SELECT
         trim(cast(zip_code AS VARCHAR)) AS zip_code,
         cast(latitude AS DOUBLE) AS latitude,
         cast(longitude AS DOUBLE) AS longitude
-      FROM read_csv_auto(${zPathSql}, header=true)`
+      FROM __zcta_raw`
     );
+    await runDuckDbExec(conn, `DROP TABLE __zcta_raw`);
   } else {
     await runDuckDbExec(
       conn,
@@ -153,30 +188,19 @@ export async function createAiMapDuckDbContext(): Promise<AiMapDuckDbContext> {
   }
 
   const close = () => {
-    for (const p of tmpPaths) {
-      try {
-        fs.unlinkSync(p);
-      } catch {
-        /* ignore */
-      }
-    }
     try {
-      conn.close((err) => {
-        if (err) console.warn("duckdb conn close:", err);
-      });
+      conn.close();
     } catch {
       /* ignore */
     }
     try {
-      db.close((err) => {
-        if (err) console.warn("duckdb db close:", err);
-      });
+      bindings.reset();
     } catch {
       /* ignore */
     }
   };
 
-  return { db, conn, tmpPaths, close };
+  return { conn, bindings, close };
 }
 
 function looksLikeUuid(s: string): boolean {

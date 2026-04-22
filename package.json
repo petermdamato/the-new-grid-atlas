@@ -17,13 +17,13 @@
     "build:zcta-centroids": "node scripts/build_zcta_centroids.mjs"
   },
   "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.28.0",
     "@langchain/core": "^1.1.40",
     "@langchain/openai": "^1.4.4",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.1",
     "@turf/turf": "^7.3.4",
     "cheerio": "^1.2.0",
-    "duckdb": "^1.4.4",
     "lucide-react": "^1.7.0",
     "mapbox-gl": "^3.20.0",
     "next": "15.5.11",
