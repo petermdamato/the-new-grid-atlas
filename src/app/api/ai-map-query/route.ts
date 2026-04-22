@@ -7,6 +7,7 @@ import {
   runDuckDbAll,
   aiQueryRowsToFeatureCollection,
 } from "@/lib/ai-map-query/load-duckdb";
+import { filterHeldOutTypesFromAiMapGeojson } from "@/lib/ai-map-query/hold-out-from-ai-map";
 import { logAiMapQueryAudit } from "@/lib/ai-map-query/audit";
 
 export const runtime = "nodejs";
@@ -105,7 +106,7 @@ export async function POST(req: Request) {
       const rows = await withTimeout(runDuckDbAll(ctx.conn, wrapped), TIMEOUT_MS, "DuckDB");
       const truncated = rows.length > OUTER_CAP;
       const trimmed = truncated ? rows.slice(0, OUTER_CAP) : rows;
-      const geojson = aiQueryRowsToFeatureCollection(trimmed);
+      const geojson = filterHeldOutTypesFromAiMapGeojson(aiQueryRowsToFeatureCollection(trimmed));
 
       logAiMapQueryAudit({
         userId,
@@ -113,14 +114,14 @@ export async function POST(req: Request) {
         sqlSnippet: validated.sql,
         ok: true,
         durationMs: Date.now() - t0,
-        rowCount: trimmed.length,
+        rowCount: geojson.features.length,
         truncated,
       });
 
       const payload: Record<string, unknown> = {
         geojson,
         truncated,
-        rowCount: trimmed.length,
+        rowCount: geojson.features.length,
       };
       if (exposeSqlToClient()) {
         payload.debugSql = validated.sql;

@@ -91,7 +91,7 @@ interface AddressSearchProps {
   electricResultsActive?: boolean;
   /** Incremented when the violations widget is dismissed to remount the Places input */
   addressFieldResetSignal?: number;
-  /** Members can use Colocation / Enterprise filters */
+  /** Members can use Enterprise filter; Colocation is visible but not available yet */
   filtersUnlocked?: boolean;
   /** Current map pin from parent — used to keep the pin when turning utility overlay Off */
   mapPinCenter?: [number, number] | null;
@@ -732,7 +732,7 @@ export default function AddressSearch({
               </div>
               <div className="flex items-start gap-1">
                 <div
-                  className={`relative min-w-0 flex-1 rounded-lg ${!filtersUnlocked ? "min-h-[80px]" : ""}`}
+                  className={`relative min-w-0 flex-1 rounded-lg ${!filtersUnlocked ? "min-h-[52px]" : ""}`}
                 >
                   <div
                     className={
@@ -750,17 +750,6 @@ export default function AddressSearch({
                           className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-zinc-300 text-teal-600 focus:ring-teal-500/30"
                         />
                         Enterprise
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-xs font-medium text-zinc-800">
-                        <input
-                          type="checkbox"
-                          checked={dataCenterTypeFilters.colocation}
-                          onChange={() => onToggleDataCenterType("colocation")}
-                          className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-zinc-300 text-sky-700 focus:ring-sky-500/30"
-                        />
-                        Colocation
                       </label>
                     </div>
                   </div>
@@ -782,9 +771,25 @@ export default function AddressSearch({
                 {filtersUnlocked ? (
                   <div className="flex shrink-0 flex-col gap-2.5 self-start pt-px">
                     <DataCenterFilterHelp id="Enterprise data center" text={DC_TYPE_HELP.enterprise} />
-                    <DataCenterFilterHelp id="Colocation data center" text={DC_TYPE_HELP.colocation} />
                   </div>
                 ) : null}
+              </div>
+              <div className="flex items-center gap-1">
+                {/* Colocation is also excluded from AI map hits — keep in sync with `hold-out-from-ai-map.ts` */}
+                <label className="flex min-w-0 flex-1 cursor-not-allowed items-center gap-2 text-xs font-medium text-zinc-500">
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    disabled
+                    aria-disabled="true"
+                    className="h-3.5 w-3.5 shrink-0 cursor-not-allowed rounded border-zinc-200 text-sky-700 opacity-60"
+                  />
+                  <span>Colocation</span>
+                  <span className="rounded bg-zinc-200/80 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-zinc-500">
+                    Coming soon
+                  </span>
+                </label>
+                <DataCenterFilterHelp id="Colocation data center" text={DC_TYPE_HELP.colocation} />
               </div>
             </div>
 

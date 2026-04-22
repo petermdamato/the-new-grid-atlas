@@ -32,7 +32,7 @@ One row per data center point.
 - name (VARCHAR)
 - address (VARCHAR)
 - postal (VARCHAR)
-- capacity_type (VARCHAR) — e.g. "Hyperscaler", "Colocation", "Enterprise", "Neocloud"
+- capacity_type (VARCHAR) — e.g. "Hyperscaler", "Colocation", "Enterprise", "Neocloud" (Colocation hits are omitted from the AI map; prefer Hyperscaler, Neocloud, or Enterprise when the user wants pins)
 - company_name (VARCHAR)
 - longitude (DOUBLE), latitude (DOUBLE) — WGS84
 

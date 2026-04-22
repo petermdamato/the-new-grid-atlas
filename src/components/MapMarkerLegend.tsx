@@ -25,8 +25,9 @@ function Dot({ color }: { color: string }) {
 }
 
 export interface MapMarkerLegendProps {
-  /** `capacitytype` values the map is allowed to show (from search filters) */
+  /** `capacitytype` values to show in the legend (from filters, or from AI hit properties when AI highlights are active) */
   visibleDataCenterCapacityTypes: string[];
+  /** From filters, or derived from AI warehouse hits when AI highlights are active */
   warehouseTypeFilters: WarehouseTypeFilters;
   /** Search pin is on the map when center is set */
   showSearchedAddress: boolean;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import AddressSearch, {
@@ -15,6 +15,7 @@ import ElectricProviderWidget from "@/components/ElectricProviderWidget";
 import MapMarkerLegend from "@/components/MapMarkerLegend";
 import DataCenterTipModal from "@/components/DataCenterTipModal";
 import { readMapUiPreferences, writeMapUiPreferences } from "@/lib/map-ui-preferences";
+import { legendVisibleDcTypesFromAiFeatures, legendWarehouseFiltersFromAiFeatures } from "@/lib/map-legend-from-features";
 import { Feature } from "geojson";
 import { Info, UserPlus, Lightbulb, MapPin } from "lucide-react";
 
@@ -25,7 +26,6 @@ function visibleCapacityTypesFromFilters(f: DataCenterTypeFilters, filtersUnlock
   }
   if (filtersUnlocked) {
     if (f.enterprise) out.push("Enterprise");
-    if (f.colocation) out.push("Colocation");
   }
   return out;
 }
@@ -133,7 +133,10 @@ export default function HomePage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [utilityDrawer]);
 
-  const visibleDcTypes = visibleCapacityTypesFromFilters(dataCenterTypeFilters, filtersUnlocked);
+  const visibleDcTypes = useMemo(
+    () => visibleCapacityTypesFromFilters(dataCenterTypeFilters, filtersUnlocked),
+    [dataCenterTypeFilters, filtersUnlocked]
+  );
 
   const openMobileSearch = useCallback(() => {
     setUtilityDrawer(null);
@@ -145,11 +148,21 @@ export default function HomePage() {
     setUtilityDrawer((prev) => (prev === kind ? null : kind));
   }, []);
 
-  const legendProps = {
-    visibleDataCenterCapacityTypes: visibleDcTypes,
-    warehouseTypeFilters,
-    showSearchedAddress: Boolean(searchResult.center),
-  };
+  const legendProps = useMemo(() => {
+    const showSearchedAddress = Boolean(searchResult.center);
+    if (aiMapQueryFeatures.length > 0) {
+      return {
+        visibleDataCenterCapacityTypes: legendVisibleDcTypesFromAiFeatures(aiMapQueryFeatures),
+        warehouseTypeFilters: legendWarehouseFiltersFromAiFeatures(aiMapQueryFeatures),
+        showSearchedAddress,
+      };
+    }
+    return {
+      visibleDataCenterCapacityTypes: visibleDcTypes,
+      warehouseTypeFilters,
+      showSearchedAddress,
+    };
+  }, [aiMapQueryFeatures, visibleDcTypes, warehouseTypeFilters, searchResult.center]);
 
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-gray-50">
