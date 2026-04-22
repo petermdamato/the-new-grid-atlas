@@ -89,8 +89,6 @@ interface AddressSearchProps {
   waterResultsActive?: boolean;
   /** True when electric territories are shown */
   electricResultsActive?: boolean;
-  /** Incremented when the violations widget is dismissed to remount the Places input */
-  addressFieldResetSignal?: number;
   /** Members can use Enterprise filter; Colocation is visible but not available yet */
   filtersUnlocked?: boolean;
   /** Current map pin from parent — used to keep the pin when turning utility overlay Off */
@@ -119,7 +117,6 @@ export default function AddressSearch({
   onToggleWarehouseType,
   waterResultsActive = false,
   electricResultsActive = false,
-  addressFieldResetSignal = 0,
   filtersUnlocked = false,
   mapPinCenter = null,
   aiResultsActive = false,
@@ -251,14 +248,6 @@ export default function AddressSearch({
       window.removeEventListener("mouseup", onMouseUp);
     };
   }, [mobileSheetExpanded, onMobileSheetOpenChange]);
-
-  useEffect(() => {
-    if (addressFieldResetSignal <= 0) return;
-    clearEnterSearchScheduling();
-    setAddress("");
-    setError(null);
-    setAutocompleteKey((k) => k + 1);
-  }, [addressFieldResetSignal]);
 
   function getQuery(): string {
     return (address.trim() || addressInputRef.current?.value.trim() || "").trim();

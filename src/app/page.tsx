@@ -17,7 +17,7 @@ import DataCenterTipModal from "@/components/DataCenterTipModal";
 import { readMapUiPreferences, writeMapUiPreferences } from "@/lib/map-ui-preferences";
 import { legendVisibleDcTypesFromAiFeatures, legendWarehouseFiltersFromAiFeatures } from "@/lib/map-legend-from-features";
 import { Feature } from "geojson";
-import { Info, UserPlus, Lightbulb, MapPin } from "lucide-react";
+import { Droplets, Info, Lightbulb, MapPin, UserPlus, Zap } from "lucide-react";
 
 function visibleCapacityTypesFromFilters(f: DataCenterTypeFilters, filtersUnlocked: boolean): string[] {
   const out: string[] = [];
@@ -64,12 +64,14 @@ export default function HomePage() {
     distributionCenter: false,
     other: false,
   });
-  const [addressFieldResetSignal, setAddressFieldResetSignal] = useState(0);
   const [tipModalOpen, setTipModalOpen] = useState(false);
   const [aiMapQueryFeatures, setAiMapQueryFeatures] = useState<Feature[]>([]);
 
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [utilityDrawer, setUtilityDrawer] = useState<UtilityDrawerKind | null>(null);
+  /** Desktop: user closed the water/electric card without clearing the address search */
+  const [waterUtilityPanelDismissed, setWaterUtilityPanelDismissed] = useState(false);
+  const [electricUtilityPanelDismissed, setElectricUtilityPanelDismissed] = useState(false);
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
   const [mapUiHydrated, setMapUiHydrated] = useState(false);
 
@@ -103,21 +105,30 @@ export default function HomePage() {
     filtersPanelOpen,
   ]);
 
-  const dismissUtilitySearch = useCallback(() => {
-    setResult((prev) => ({
-      features: [],
-      center: null,
-      utilityType: prev.utilityType ?? DEFAULT_UTILITY_TYPE,
-    }));
-    setSelectedIndex(0);
-    setAddressFieldResetSignal((n) => n + 1);
+  const closeMobileUtilityDrawer = useCallback(() => {
     setUtilityDrawer(null);
+  }, []);
+
+  const dismissDesktopWaterPanel = useCallback(() => {
+    setWaterUtilityPanelDismissed(true);
+  }, []);
+
+  const dismissDesktopElectricPanel = useCallback(() => {
+    setElectricUtilityPanelDismissed(true);
   }, []);
 
   const waterResultsActive =
     searchResult.features.length > 0 && searchResult.utilityType === "water";
   const electricResultsActive =
     searchResult.features.length > 0 && searchResult.utilityType === "electric";
+
+  useEffect(() => {
+    if (!waterResultsActive) setWaterUtilityPanelDismissed(false);
+  }, [waterResultsActive]);
+
+  useEffect(() => {
+    if (!electricResultsActive) setElectricUtilityPanelDismissed(false);
+  }, [electricResultsActive]);
 
   useEffect(() => {
     if (utilityDrawer === "water" && !waterResultsActive) setUtilityDrawer(null);
@@ -199,7 +210,6 @@ export default function HomePage() {
         filtersUnlocked={filtersUnlocked}
         waterResultsActive={waterResultsActive}
         electricResultsActive={electricResultsActive}
-        addressFieldResetSignal={addressFieldResetSignal}
         aiResultsActive={aiMapQueryFeatures.length > 0}
         onClearAiMapQuery={() => setAiMapQueryFeatures([])}
         onAiMapQueryResult={(data) => {
@@ -212,6 +222,8 @@ export default function HomePage() {
         onResult={(data) => {
           setResult(data);
           setSelectedIndex(0);
+          setWaterUtilityPanelDismissed(false);
+          setElectricUtilityPanelDismissed(false);
           const ut = data.utilityType ?? DEFAULT_UTILITY_TYPE;
           if ((ut === "water" || ut === "electric") && data.features.length > 0) {
             setAiMapQueryFeatures([]);
@@ -241,30 +253,30 @@ export default function HomePage() {
         Search
       </button>
 
-      {/* Mobile: utility emoji triggers — right slide-in */}
-      <div className="fixed right-3 top-1/2 z-[26] flex -translate-y-1/2 flex-col gap-2 md:hidden">
-        {waterResultsActive ? (
-          <button
-            type="button"
-            onClick={() => toggleUtilityDrawer("water")}
-            className={`flex h-12 w-12 items-center justify-center rounded-full border border-white/50 bg-white/95 text-2xl shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white ${
-              utilityDrawer === "water" ? "ring-2 ring-sky-400 ring-offset-2 ring-offset-transparent" : ""
-            }`}
-            aria-label="Open water system and violations"
-          >
-            <span aria-hidden>💧</span>
-          </button>
-        ) : null}
+      {/* Mobile: utility triggers — upper right (icons match AddressSearch: monochrome Lucide) */}
+      <div className="fixed right-3 top-[max(0.75rem,env(safe-area-inset-top,0px)+0.25rem)] z-[26] flex flex-col gap-2 md:hidden">
         {electricResultsActive ? (
           <button
             type="button"
             onClick={() => toggleUtilityDrawer("electric")}
-            className={`flex h-12 w-12 items-center justify-center rounded-full border border-white/50 bg-white/95 text-2xl shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white ${
+            className={`flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200/90 bg-white/95 text-zinc-900 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white ${
               utilityDrawer === "electric" ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-transparent" : ""
             }`}
             aria-label="Open electric service territory"
           >
-            <span aria-hidden>⚡</span>
+            <Zap className="h-5 w-5 shrink-0 stroke-[2.25]" aria-hidden />
+          </button>
+        ) : null}
+        {waterResultsActive ? (
+          <button
+            type="button"
+            onClick={() => toggleUtilityDrawer("water")}
+            className={`flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200/90 bg-white/95 text-zinc-900 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white ${
+              utilityDrawer === "water" ? "ring-2 ring-sky-400 ring-offset-2 ring-offset-transparent" : ""
+            }`}
+            aria-label="Open water system and violations"
+          >
+            <Droplets className="h-5 w-5 shrink-0 stroke-[2.25]" aria-hidden />
           </button>
         ) : null}
       </div>
@@ -302,7 +314,7 @@ export default function HomePage() {
                   features={searchResult.features}
                   selectedIndex={selectedIndex}
                   onSelectIndex={setSelectedIndex}
-                  onDismiss={dismissUtilitySearch}
+                  onDismiss={closeMobileUtilityDrawer}
                   detailUnlocked={filtersUnlocked}
                 />
               ) : null}
@@ -312,7 +324,7 @@ export default function HomePage() {
                   features={searchResult.features}
                   selectedIndex={selectedIndex}
                   onSelectIndex={setSelectedIndex}
-                  onDismiss={dismissUtilitySearch}
+                  onDismiss={closeMobileUtilityDrawer}
                 />
               ) : null}
             </div>
@@ -320,49 +332,49 @@ export default function HomePage() {
         </>
       ) : null}
 
-      {/* Mobile: left circular actions */}
-      <div className="fixed left-3 top-1/2 z-[25] flex -translate-y-1/2 flex-col gap-2 md:hidden">
+      {/* Mobile: tip / about / account — upper left */}
+      <div className="fixed left-3 top-[max(0.75rem,env(safe-area-inset-top,0px)+0.25rem)] z-[25] flex flex-col gap-2 md:hidden">
         <button
           type="button"
           onClick={() => setTipModalOpen(true)}
-          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/50 bg-white/95 text-zinc-700 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white"
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200/90 bg-white/95 text-zinc-900 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white"
           aria-label="Submit a tip"
         >
-          <Lightbulb className="h-5 w-5 shrink-0" aria-hidden />
+          <Lightbulb className="h-5 w-5 shrink-0 stroke-[2.25]" aria-hidden />
         </button>
         <Link
           href="/about"
-          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/50 bg-white/95 text-zinc-700 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white"
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200/90 bg-white/95 text-zinc-900 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white"
           aria-label="About this project"
         >
-          <Info className="h-5 w-5 shrink-0" aria-hidden />
+          <Info className="h-5 w-5 shrink-0 stroke-[2.25]" aria-hidden />
         </Link>
         <Link
           href={user ? "/account" : "/signup"}
-          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/50 bg-white/95 text-zinc-700 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white"
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200/90 bg-white/95 text-zinc-900 shadow-[0_4px_16px_rgba(0,0,0,0.1)] backdrop-blur-md transition hover:bg-white"
           aria-label={user ? "Account" : "Sign up for free"}
         >
-          <UserPlus className="h-5 w-5 shrink-0" aria-hidden />
+          <UserPlus className="h-5 w-5 shrink-0 stroke-[2.25]" aria-hidden />
         </Link>
       </div>
 
       {/* Desktop: violations + electric + legend */}
       <div className="absolute bottom-[80px] right-[80px] z-10 hidden flex-col items-end gap-2 md:flex">
-        {waterResultsActive && (
+        {waterResultsActive && !waterUtilityPanelDismissed && (
           <ViolationsWidget
             features={searchResult.features}
             selectedIndex={selectedIndex}
             onSelectIndex={setSelectedIndex}
-            onDismiss={dismissUtilitySearch}
+            onDismiss={dismissDesktopWaterPanel}
             detailUnlocked={filtersUnlocked}
           />
         )}
-        {electricResultsActive && (
+        {electricResultsActive && !electricUtilityPanelDismissed && (
           <ElectricProviderWidget
             features={searchResult.features}
             selectedIndex={selectedIndex}
             onSelectIndex={setSelectedIndex}
-            onDismiss={dismissUtilitySearch}
+            onDismiss={dismissDesktopElectricPanel}
           />
         )}
         <MapMarkerLegend {...legendProps} />
