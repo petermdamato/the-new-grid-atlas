@@ -89,7 +89,7 @@ interface AddressSearchProps {
   waterResultsActive?: boolean;
   /** True when electric territories are shown */
   electricResultsActive?: boolean;
-  /** Members can use Enterprise filter; Colocation is visible but not available yet */
+  /** Members can use Enterprise filter; Colocation stays disabled (coming soon), shown inside the same paywall blur as Enterprise when signed out */
   filtersUnlocked?: boolean;
   /** Current map pin from parent — used to keep the pin when turning utility overlay Off */
   mapPinCenter?: [number, number] | null;
@@ -721,7 +721,7 @@ export default function AddressSearch({
               </div>
               <div className="flex items-start gap-1">
                 <div
-                  className={`relative min-w-0 flex-1 rounded-lg ${!filtersUnlocked ? "min-h-[52px]" : ""}`}
+                  className={`relative min-w-0 flex-1 rounded-lg ${!filtersUnlocked ? "min-h-[5.75rem]" : ""}`}
                 >
                   <div
                     className={
@@ -741,6 +741,22 @@ export default function AddressSearch({
                         Enterprise
                       </label>
                     </div>
+                    {/* Colocation is also excluded from AI map hits — keep in sync with `hold-out-from-ai-map.ts` */}
+                    <div className="flex items-center">
+                      <label className="flex min-w-0 flex-1 cursor-not-allowed items-center gap-2 text-xs font-medium text-zinc-500">
+                        <input
+                          type="checkbox"
+                          checked={false}
+                          disabled
+                          aria-disabled="true"
+                          className="h-3.5 w-3.5 shrink-0 cursor-not-allowed rounded border-zinc-200 text-sky-700 opacity-60"
+                        />
+                        <span>Colocation</span>
+                        <span className="rounded bg-zinc-200/80 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-zinc-500">
+                          Coming soon
+                        </span>
+                      </label>
+                    </div>
                   </div>
                   {!filtersUnlocked && (
                     <div className="pointer-events-auto absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-white/55 px-3 py-2 text-center backdrop-blur-[2px]">
@@ -757,28 +773,10 @@ export default function AddressSearch({
                     </div>
                   )}
                 </div>
-                {filtersUnlocked ? (
-                  <div className="flex shrink-0 flex-col gap-2.5 self-start pt-px">
-                    <DataCenterFilterHelp id="Enterprise data center" text={DC_TYPE_HELP.enterprise} />
-                  </div>
-                ) : null}
-              </div>
-              <div className="flex items-center gap-1">
-                {/* Colocation is also excluded from AI map hits — keep in sync with `hold-out-from-ai-map.ts` */}
-                <label className="flex min-w-0 flex-1 cursor-not-allowed items-center gap-2 text-xs font-medium text-zinc-500">
-                  <input
-                    type="checkbox"
-                    checked={false}
-                    disabled
-                    aria-disabled="true"
-                    className="h-3.5 w-3.5 shrink-0 cursor-not-allowed rounded border-zinc-200 text-sky-700 opacity-60"
-                  />
-                  <span>Colocation</span>
-                  <span className="rounded bg-zinc-200/80 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-zinc-500">
-                    Coming soon
-                  </span>
-                </label>
-                <DataCenterFilterHelp id="Colocation data center" text={DC_TYPE_HELP.colocation} />
+                <div className="flex shrink-0 flex-col gap-2.5 self-start pt-px">
+                  <DataCenterFilterHelp id="Enterprise data center" text={DC_TYPE_HELP.enterprise} />
+                  <DataCenterFilterHelp id="Colocation data center" text={DC_TYPE_HELP.colocation} />
+                </div>
               </div>
             </div>
 

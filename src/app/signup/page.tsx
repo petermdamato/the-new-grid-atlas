@@ -1,17 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-export default function SignupPage() {
+const OAUTH_SETUP_HINT =
+  "Google sign-in did not finish. In Supabase: enable the Google provider, add the Google client ID/secret, and add this app’s /auth/callback URL under Authentication → URL Configuration. In Google Cloud, set the redirect URI to Supabase’s …/auth/v1/callback (see .env.example).";
+
+function SignupPageInner() {
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"signup" | "signin">("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("error") === "auth") {
+      setError(OAUTH_SETUP_HINT);
+    }
+  }, [searchParams]);
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -266,5 +277,19 @@ export default function SignupPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-gray-50 font-jakarta">
+          <p className="text-sm text-zinc-500">Loading…</p>
+        </main>
+      }
+    >
+      <SignupPageInner />
+    </Suspense>
   );
 }
