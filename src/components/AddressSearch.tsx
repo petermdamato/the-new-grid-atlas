@@ -359,7 +359,7 @@ export default function AddressSearch({
     if (!q) return;
 
     if (!filtersUnlocked) {
-      setAiError("Sign in to run AI map queries.");
+      setAiError("Sign up to query with AI.");
       return;
     }
 
@@ -500,20 +500,25 @@ export default function AddressSearch({
             value={aiQuery}
             onChange={(e) => setAiQuery(e.target.value)}
             placeholder="Ask anything about the map data…"
-            className="h-11 w-full rounded-2xl border border-zinc-200/90 bg-white px-4 text-xs text-zinc-800 shadow-[0_4px_14px_rgba(0,0,0,0.06)] outline-none ring-zinc-300 placeholder:text-zinc-400 focus:border-violet-300 focus:ring-2 focus:ring-violet-200/60"
+            className="h-11 w-full rounded-2xl border border-zinc-200/90 bg-white px-4 text-xs text-zinc-800 shadow-[0_4px_14px_rgba(0,0,0,0.06)] outline-none ring-zinc-300 placeholder:text-zinc-400 focus:border-violet-300 focus:ring-2 focus:ring-violet-200/60 disabled:cursor-not-allowed disabled:opacity-60"
             aria-label="Natural language map query"
-            disabled={aiLoading}
+            disabled={aiLoading || !filtersUnlocked}
           />
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={aiLoading || !aiQuery.trim()}
-              className="group flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white shadow-md transition-all duration-150 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-zinc-900"
+              disabled={!filtersUnlocked || aiLoading || !aiQuery.trim()}
+              className="group flex max-w-full items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white shadow-md transition-all duration-150 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-zinc-900"
             >
               {aiLoading ? (
                 <>
                   Searching
                   <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+                </>
+              ) : !filtersUnlocked ? (
+                <>
+                  <KeyRound className="h-5 w-5 shrink-0 text-zinc-300" aria-hidden />
+                  Sign up to query with AI
                 </>
               ) : (
                 <>
