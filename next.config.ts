@@ -35,6 +35,7 @@ const nextConfig: NextConfig = {
       "./node_modules/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm",
       "./node_modules/@duckdb/duckdb-wasm/dist/duckdb-node-mvp.worker.cjs",
       "./node_modules/@duckdb/duckdb-wasm/dist/duckdb-node-eh.worker.cjs",
+      "./node_modules/apache-arrow/Arrow.node.js",
     ],
   },
 };

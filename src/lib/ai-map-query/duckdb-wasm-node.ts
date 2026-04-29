@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import type { DuckDBConnection } from "../../../node_modules/@duckdb/duckdb-wasm/dist/types/src/bindings/connection";
+import type { DuckDBConnection } from "@duckdb/duckdb-wasm/blocking";
 import type * as NodeBlocking from "../../../node_modules/@duckdb/duckdb-wasm/dist/types/src/targets/duckdb-node-blocking";
 
 const require = createRequire(import.meta.url);

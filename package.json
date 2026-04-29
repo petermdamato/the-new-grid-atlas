@@ -17,6 +17,7 @@
     "build:zcta-centroids": "node scripts/build_zcta_centroids.mjs"
   },
   "dependencies": {
+    "apache-arrow": "13.0.0",
     "@duckdb/duckdb-wasm": "^1.28.0",
     "@langchain/core": "^1.1.40",
     "@langchain/openai": "^1.4.4",

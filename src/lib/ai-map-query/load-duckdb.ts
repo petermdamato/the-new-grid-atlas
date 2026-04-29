@@ -73,7 +73,7 @@ function flattenWarehouses(fc: FeatureCollection): Record<string, unknown>[] {
       warehouse_type_raw: p.warehouseTypeRaw != null ? String(p.warehouseTypeRaw) : "",
       company_name: p.companyName != null ? String(p.companyName) : "",
       next_gen: p.nextGen === true || p.nextGen === "true",
-      note: p.note != null ? String(p.note) : null,
+      note: p.note != null && String(p.note).trim() !== "" ? String(p.note) : "",
       volume:
         typeof p.volume === "number" && Number.isFinite(p.volume)
           ? p.volume
@@ -129,6 +129,40 @@ CREATE OR REPLACE MACRO haversine_km(lat1, lon1, lat2, lon2) AS (
 )
 `.trim();
 
+/** MySQL \`substring_index\` — models often emit it; DuckDB has no builtin. */
+const SUBSTRING_INDEX_MACRO = `
+CREATE OR REPLACE MACRO substring_index(s, delim, cnt) AS (
+  CASE
+    WHEN delim IS NULL OR CAST(delim AS VARCHAR) = '' THEN CAST(s AS VARCHAR)
+    WHEN try_cast(cnt AS INTEGER) IS NULL OR try_cast(cnt AS INTEGER) = 0 THEN CAST(s AS VARCHAR)
+    WHEN try_cast(cnt AS INTEGER) > 0 THEN
+      array_to_string(
+        list_slice(
+          string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR)),
+          1,
+          least(
+            try_cast(cnt AS INTEGER),
+            len(string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR)))
+          )
+        ),
+        CAST(delim AS VARCHAR)
+      )
+    ELSE
+      array_to_string(
+        list_slice(
+          string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR)),
+          greatest(
+            1,
+            len(string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR))) + try_cast(cnt AS INTEGER) + 1
+          ),
+          len(string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR)))
+        ),
+        CAST(delim AS VARCHAR)
+      )
+  END
+)
+`.trim();
+
 /**
  * Explicit Arrow types for insertJSONFromPath — avoids TIMESTAMP inference on free-text (e.g. `note`)
  * and does not require the DuckDB `json` extension (unavailable in duckdb-wasm on Vercel).
@@ -162,7 +196,7 @@ const DATA_CENTERS_JSON_COLUMNS = {
 
 /**
  * In-memory DuckDB (WASM) with allowlisted tables `warehouses`, `data_centers`, and optional `zip_centroids`
- * (from `data/zcta_centroids.csv` when present), plus a `haversine_km` macro for spherical distance.
+ * (from `data/zcta_centroids.csv` when present), plus macros \`haversine_km\` and MySQL-compat \`substring_index\`.
  */
 export async function createAiMapDuckDbContext(): Promise<AiMapDuckDbContext> {
   const logger = new VoidLogger();
@@ -204,6 +238,7 @@ export async function createAiMapDuckDbContext(): Promise<AiMapDuckDbContext> {
   });
 
   await runDuckDbExec(conn, HAVERSINE_KM_MACRO);
+  await runDuckDbExec(conn, SUBSTRING_INDEX_MACRO);
 
   const zctaCsvPath = path.join(process.cwd(), "data", "zcta_centroids.csv");
   if (fs.existsSync(zctaCsvPath)) {

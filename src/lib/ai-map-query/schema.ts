@@ -45,8 +45,12 @@ US Census 2020 ZCTA internal points (approximate ZIP-area centroids). **Empty un
 
 **Distance:** use the built-in macro \`haversine_km(lat1, lon1, lat2, lon2)\` (great-circle distance in km). Example: join one zip row with \`data_centers\`, \`ORDER BY haversine_km(z.latitude, z.longitude, dc.latitude, dc.longitude) ASC\`, \`LIMIT\` for nearest neighbors.
 
+**Predefined macros:** \`haversine_km\` (above); \`substring_index(str, delim, cnt)\` — MySQL-style string split/join helper when you need multi-part slices; prefer \`split_part\` when you only need one segment.
+
 Rules for generated SQL:
-- DuckDB dialect.
+- DuckDB dialect only (embedded WASM). Do not assume MySQL/SQL Server/Postgres-only builtins unless listed below.
+- Prefer native DuckDB: \`split_part(col, delim, n)\` for one segment; \`string_split\` + \`list_slice\` + \`array_to_string\` for multi-segment joins; \`coalesce\`, \`string_agg\`, \`strpos\` / \`instr\`.
+- A limited \`substring_index(str, delim, cnt)\` macro exists (MySQL-style positive/negative \`cnt\`) — use only when necessary; native DuckDB is clearer when it fits.
 - Single SELECT only — do not use WITH or CTEs.
 - Prefer filtering with WHERE; use LIMIT (max 200 in inner query; server adds a hard outer cap).
 - Qualify column names; do not use SELECT * unless necessary (prefer named columns).

@@ -5,6 +5,7 @@ import { AI_MAP_QUERY_SCHEMA_DOC } from "./schema";
 const SYSTEM_PREFIX = `You are a DuckDB SQL generator for a read-only analytics database.
 Output exactly one SELECT statement. No comments. No semicolons. No WITH/CTE clauses.
 Return ONLY the raw SQL text — no markdown fences, no explanation.
+The database is DuckDB (embedded), not MySQL. Prefer DuckDB idioms: coalesce (not ifnull), string_agg (not group_concat), split_part / string_split / strpos for strings.
 
 `;
 
