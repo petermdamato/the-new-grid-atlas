@@ -127,6 +127,34 @@ CREATE OR REPLACE MACRO haversine_km(lat1, lon1, lat2, lon2) AS (
 )
 `.trim();
 
+/** Typed read_json so Arrow does not infer TIMESTAMP for free-text columns (e.g. `note`). */
+const READ_JSON_WAREHOUSES = `read_json('__ai_map_warehouses.json', columns = {
+  kind: 'VARCHAR',
+  code: 'VARCHAR',
+  name: 'VARCHAR',
+  address: 'VARCHAR',
+  location_region: 'VARCHAR',
+  warehouse_group: 'VARCHAR',
+  warehouse_type_raw: 'VARCHAR',
+  company_name: 'VARCHAR',
+  next_gen: 'BOOLEAN',
+  note: 'VARCHAR',
+  volume: 'DOUBLE',
+  longitude: 'DOUBLE',
+  latitude: 'DOUBLE'
+})`;
+
+const READ_JSON_DATA_CENTERS = `read_json('__ai_map_data_centers.json', columns = {
+  id: 'VARCHAR',
+  name: 'VARCHAR',
+  address: 'VARCHAR',
+  postal: 'VARCHAR',
+  capacity_type: 'VARCHAR',
+  company_name: 'VARCHAR',
+  longitude: 'DOUBLE',
+  latitude: 'DOUBLE'
+})`;
+
 /**
  * In-memory DuckDB (WASM) with allowlisted tables `warehouses`, `data_centers`, and optional `zip_centroids`
  * (from `data/zcta_centroids.csv` when present), plus a `haversine_km` macro for spherical distance.
@@ -154,8 +182,59 @@ export async function createAiMapDuckDbContext(): Promise<AiMapDuckDbContext> {
 
   bindings.registerFileText("__ai_map_warehouses.json", JSON.stringify(wRows));
   bindings.registerFileText("__ai_map_data_centers.json", JSON.stringify(dRows));
-  conn.insertJSONFromPath("__ai_map_warehouses.json", { schema: "main", name: "warehouses" });
-  conn.insertJSONFromPath("__ai_map_data_centers.json", { schema: "main", name: "data_centers" });
+
+  await runDuckDbExec(
+    conn,
+    `CREATE TABLE warehouses (
+      kind VARCHAR,
+      code VARCHAR,
+      name VARCHAR,
+      address VARCHAR,
+      location_region VARCHAR,
+      warehouse_group VARCHAR,
+      warehouse_type_raw VARCHAR,
+      company_name VARCHAR,
+      next_gen BOOLEAN,
+      note VARCHAR,
+      volume DOUBLE,
+      longitude DOUBLE,
+      latitude DOUBLE
+    )`
+  );
+  await runDuckDbExec(
+    conn,
+    `INSERT INTO warehouses (
+      kind, code, name, address, location_region, warehouse_group, warehouse_type_raw,
+      company_name, next_gen, note, volume, longitude, latitude
+    )
+    SELECT
+      kind, code, name, address, location_region, warehouse_group, warehouse_type_raw,
+      company_name, next_gen, note, volume, longitude, latitude
+    FROM ${READ_JSON_WAREHOUSES}`
+  );
+
+  await runDuckDbExec(
+    conn,
+    `CREATE TABLE data_centers (
+      id VARCHAR,
+      name VARCHAR,
+      address VARCHAR,
+      postal VARCHAR,
+      capacity_type VARCHAR,
+      company_name VARCHAR,
+      longitude DOUBLE,
+      latitude DOUBLE
+    )`
+  );
+  await runDuckDbExec(
+    conn,
+    `INSERT INTO data_centers (
+      id, name, address, postal, capacity_type, company_name, longitude, latitude
+    )
+    SELECT
+      id, name, address, postal, capacity_type, company_name, longitude, latitude
+    FROM ${READ_JSON_DATA_CENTERS}`
+  );
 
   await runDuckDbExec(conn, HAVERSINE_KM_MACRO);
 
