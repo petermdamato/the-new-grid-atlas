@@ -49,7 +49,8 @@ US Census 2020 ZCTA internal points (approximate ZIP-area centroids). **Empty un
 
 Rules for generated SQL:
 - DuckDB dialect only (embedded WASM). Do not assume MySQL/SQL Server/Postgres-only builtins unless listed below.
-- Prefer native DuckDB: \`split_part(col, delim, n)\` for one segment; \`string_split\` + \`list_slice\` + \`array_to_string\` for multi-segment joins; \`coalesce\`, \`string_agg\`, \`strpos\` / \`instr\`.
+- Prefer native DuckDB: \`split_part(col, delim, n)\` for one segment; \`string_split\` + \`list_slice\` + \`array_to_string\` for multi-segment joins; \`coalesce\`, \`strpos\` / \`instr\`.
+- \`string_agg(expr, sep)\`: **sep must be a string literal** (e.g. \`', '\`, \`'; '\`, \`' | '\`). Never use a column, parameter, or expression for \`sep\` — DuckDB errors with “Separator argument to StringAgg must be a constant”. For “concatenate with a dynamic delimiter”, aggregate with \`list(expr)\` (optionally \`ORDER BY\`) then \`array_to_string(that_list, literal_sep)\` using a literal delimiter, or avoid aggregation and use row-level \`concat\` / \`concat_ws\` with literals only where required.
 - A limited \`substring_index(str, delim, cnt)\` macro exists (MySQL-style positive/negative \`cnt\`) — use only when necessary; native DuckDB is clearer when it fits.
 - Single SELECT only — do not use WITH or CTEs.
 - Prefer filtering with WHERE; use LIMIT (max 200 in inner query; server adds a hard outer cap).
