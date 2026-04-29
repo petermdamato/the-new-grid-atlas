@@ -129,6 +129,9 @@ CREATE OR REPLACE MACRO haversine_km(lat1, lon1, lat2, lon2) AS (
 )
 `.trim();
 
+/** Unit separator — join with \`array_to_string\` then \`replace\` so the separator is a SQL constant (WASM binder rejects non-constant \`array_to_string\` / StringAgg sep). */
+const SUBSTRING_INDEX_JOIN_SENTINEL = "\u001f";
+
 /** MySQL \`substring_index\` — models often emit it; DuckDB has no builtin. */
 const SUBSTRING_INDEX_MACRO = `
 CREATE OR REPLACE MACRO substring_index(s, delim, cnt) AS (
@@ -136,27 +139,35 @@ CREATE OR REPLACE MACRO substring_index(s, delim, cnt) AS (
     WHEN delim IS NULL OR CAST(delim AS VARCHAR) = '' THEN CAST(s AS VARCHAR)
     WHEN try_cast(cnt AS INTEGER) IS NULL OR try_cast(cnt AS INTEGER) = 0 THEN CAST(s AS VARCHAR)
     WHEN try_cast(cnt AS INTEGER) > 0 THEN
-      array_to_string(
-        list_slice(
-          string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR)),
-          1,
-          least(
-            try_cast(cnt AS INTEGER),
-            len(string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR)))
-          )
+      replace(
+        array_to_string(
+          list_slice(
+            string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR)),
+            1,
+            least(
+              try_cast(cnt AS INTEGER),
+              len(string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR)))
+            )
+          ),
+          '${SUBSTRING_INDEX_JOIN_SENTINEL}'
         ),
+        '${SUBSTRING_INDEX_JOIN_SENTINEL}',
         CAST(delim AS VARCHAR)
       )
     ELSE
-      array_to_string(
-        list_slice(
-          string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR)),
-          greatest(
-            1,
-            len(string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR))) + try_cast(cnt AS INTEGER) + 1
+      replace(
+        array_to_string(
+          list_slice(
+            string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR)),
+            greatest(
+              1,
+              len(string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR))) + try_cast(cnt AS INTEGER) + 1
+            ),
+            len(string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR)))
           ),
-          len(string_split(CAST(s AS VARCHAR), CAST(delim AS VARCHAR)))
+          '${SUBSTRING_INDEX_JOIN_SENTINEL}'
         ),
+        '${SUBSTRING_INDEX_JOIN_SENTINEL}',
         CAST(delim AS VARCHAR)
       )
   END

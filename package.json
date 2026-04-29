@@ -8,6 +8,7 @@
     "build:turbo": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
+    "test:ai-map-smoke": "tsx scripts/ai-map-query-smoke.ts",
     "build:data-centers": "node scripts/build_data_centers_geojson.mjs",
     "split-electric": "node --max-old-space-size=8192 scripts/split_electric_by_state.mjs",
     "build:amazon-warehouses": "node scripts/build_amazon_warehouses_geojson.mjs",
@@ -49,6 +50,7 @@
     "eslint-config-next": "15.5.11",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
+    "tsx": "^4.19.4",
     "typescript": "^5"
   }
 }
