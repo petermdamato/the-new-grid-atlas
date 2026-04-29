@@ -127,7 +127,7 @@ CREATE OR REPLACE MACRO haversine_km(lat1, lon1, lat2, lon2) AS (
 )
 `.trim();
 
-/** Typed read_json so Arrow does not infer TIMESTAMP for free-text columns (e.g. `note`). */
+/** Typed read_json (requires `LOAD json`) so Arrow does not infer TIMESTAMP on free-text (e.g. `note`). */
 const READ_JSON_WAREHOUSES = `read_json('__ai_map_warehouses.json', columns = {
   kind: 'VARCHAR',
   code: 'VARCHAR',
@@ -170,6 +170,10 @@ export async function createAiMapDuckDbContext(): Promise<AiMapDuckDbContext> {
   const conn = bindings.connect();
   // duckdb-wasm MVP/EH on Node is built without pthreads; threads>1 throws at runtime (e.g. Vercel).
   await runDuckDbExec(conn, `PRAGMA threads=1`);
+  // read_json() requires the json extension (see DuckDB catalog). Autoload helps when the ext isn't pre-linked.
+  await runDuckDbExec(conn, `SET autoinstall_known_extensions = true`);
+  await runDuckDbExec(conn, `SET autoload_known_extensions = true`);
+  await runDuckDbExec(conn, `LOAD json`);
 
   const warehousesPath = path.join(process.cwd(), "public", "amazon_warehouses.geojson");
   const dataCentersPath = path.join(process.cwd(), "public", "data_centers.geojson");

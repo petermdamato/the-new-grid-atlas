@@ -432,7 +432,7 @@ export default function AddressSearch({
     mobileSheetOpen && sheetDragY > 0 ? { transform: `translateY(${sheetDragY}px)` } : undefined;
 
   const rootClass =
-    "select-none font-jakarta overflow-x-hidden bg-[#FAFAFA] " +
+    "font-jakarta overflow-x-hidden bg-[#FAFAFA] " +
     (sheetDragY > 0 ? "max-md:transition-none " : "") +
     "max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-[34] max-md:w-full max-md:rounded-t-none max-md:shadow-[0_-8px_32px_rgba(0,0,0,0.14)] max-md:max-h-[min(92dvh,100dvh)] max-md:overflow-y-auto max-md:pb-[env(safe-area-inset-bottom,0px)] max-md:transition-transform max-md:duration-300 max-md:ease-out " +
     (mobileSheetOpen
