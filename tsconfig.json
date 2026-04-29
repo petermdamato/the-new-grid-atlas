@@ -25,11 +25,15 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "apache-arrow": [
+        "./node_modules/apache-arrow/Arrow.node.js"
       ]
     }
   },
   "include": [
     "next-env.d.ts",
+    "src/types/apache-arrow-augment.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",

@@ -1,6 +1,22 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.resolve.alias = {
+        ...(config.resolve.alias as Record<string, string | false | string[]>),
+        "apache-arrow": path.join(process.cwd(), "node_modules/apache-arrow/Arrow.node.js"),
+      };
+    }
+    return config;
+  },
+  /** `next dev --turbopack`: same apache-arrow resolution as webpack (Node entry, not DOM). */
+  turbopack: {
+    resolveAlias: {
+      "apache-arrow": path.join(process.cwd(), "node_modules/apache-arrow/Arrow.node.js"),
+    },
+  },
   // Keep huge GeoJSON out of the serverless bundle when deployed (e.g. Vercel).
   // At runtime set BOUNDARIES_BASE_URL to a public R2 (or other HTTPS) base.
   outputFileTracingExcludes: {

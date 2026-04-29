@@ -1,5 +1,7 @@
 import fs from "fs";
 import path from "path";
+import { JSONTableShape } from "@duckdb/duckdb-wasm/blocking";
+import { Bool, Float64, Utf8 } from "apache-arrow";
 import type { Feature, FeatureCollection } from "geojson";
 import {
   createDuckDB,
@@ -127,33 +129,36 @@ CREATE OR REPLACE MACRO haversine_km(lat1, lon1, lat2, lon2) AS (
 )
 `.trim();
 
-/** Typed read_json (requires `LOAD json`) so Arrow does not infer TIMESTAMP on free-text (e.g. `note`). */
-const READ_JSON_WAREHOUSES = `read_json('__ai_map_warehouses.json', columns = {
-  kind: 'VARCHAR',
-  code: 'VARCHAR',
-  name: 'VARCHAR',
-  address: 'VARCHAR',
-  location_region: 'VARCHAR',
-  warehouse_group: 'VARCHAR',
-  warehouse_type_raw: 'VARCHAR',
-  company_name: 'VARCHAR',
-  next_gen: 'BOOLEAN',
-  note: 'VARCHAR',
-  volume: 'DOUBLE',
-  longitude: 'DOUBLE',
-  latitude: 'DOUBLE'
-})`;
+/**
+ * Explicit Arrow types for insertJSONFromPath — avoids TIMESTAMP inference on free-text (e.g. `note`)
+ * and does not require the DuckDB `json` extension (unavailable in duckdb-wasm on Vercel).
+ */
+const WAREHOUSES_JSON_COLUMNS = {
+  kind: new Utf8(),
+  code: new Utf8(),
+  name: new Utf8(),
+  address: new Utf8(),
+  location_region: new Utf8(),
+  warehouse_group: new Utf8(),
+  warehouse_type_raw: new Utf8(),
+  company_name: new Utf8(),
+  next_gen: new Bool(),
+  note: new Utf8(),
+  volume: new Float64(),
+  longitude: new Float64(),
+  latitude: new Float64(),
+};
 
-const READ_JSON_DATA_CENTERS = `read_json('__ai_map_data_centers.json', columns = {
-  id: 'VARCHAR',
-  name: 'VARCHAR',
-  address: 'VARCHAR',
-  postal: 'VARCHAR',
-  capacity_type: 'VARCHAR',
-  company_name: 'VARCHAR',
-  longitude: 'DOUBLE',
-  latitude: 'DOUBLE'
-})`;
+const DATA_CENTERS_JSON_COLUMNS = {
+  id: new Utf8(),
+  name: new Utf8(),
+  address: new Utf8(),
+  postal: new Utf8(),
+  capacity_type: new Utf8(),
+  company_name: new Utf8(),
+  longitude: new Float64(),
+  latitude: new Float64(),
+};
 
 /**
  * In-memory DuckDB (WASM) with allowlisted tables `warehouses`, `data_centers`, and optional `zip_centroids`
@@ -170,10 +175,6 @@ export async function createAiMapDuckDbContext(): Promise<AiMapDuckDbContext> {
   const conn = bindings.connect();
   // duckdb-wasm MVP/EH on Node is built without pthreads; threads>1 throws at runtime (e.g. Vercel).
   await runDuckDbExec(conn, `PRAGMA threads=1`);
-  // read_json() requires the json extension (see DuckDB catalog). Autoload helps when the ext isn't pre-linked.
-  await runDuckDbExec(conn, `SET autoinstall_known_extensions = true`);
-  await runDuckDbExec(conn, `SET autoload_known_extensions = true`);
-  await runDuckDbExec(conn, `LOAD json`);
 
   const warehousesPath = path.join(process.cwd(), "public", "amazon_warehouses.geojson");
   const dataCentersPath = path.join(process.cwd(), "public", "data_centers.geojson");
@@ -187,58 +188,20 @@ export async function createAiMapDuckDbContext(): Promise<AiMapDuckDbContext> {
   bindings.registerFileText("__ai_map_warehouses.json", JSON.stringify(wRows));
   bindings.registerFileText("__ai_map_data_centers.json", JSON.stringify(dRows));
 
-  await runDuckDbExec(
-    conn,
-    `CREATE TABLE warehouses (
-      kind VARCHAR,
-      code VARCHAR,
-      name VARCHAR,
-      address VARCHAR,
-      location_region VARCHAR,
-      warehouse_group VARCHAR,
-      warehouse_type_raw VARCHAR,
-      company_name VARCHAR,
-      next_gen BOOLEAN,
-      note VARCHAR,
-      volume DOUBLE,
-      longitude DOUBLE,
-      latitude DOUBLE
-    )`
-  );
-  await runDuckDbExec(
-    conn,
-    `INSERT INTO warehouses (
-      kind, code, name, address, location_region, warehouse_group, warehouse_type_raw,
-      company_name, next_gen, note, volume, longitude, latitude
-    )
-    SELECT
-      kind, code, name, address, location_region, warehouse_group, warehouse_type_raw,
-      company_name, next_gen, note, volume, longitude, latitude
-    FROM ${READ_JSON_WAREHOUSES}`
-  );
-
-  await runDuckDbExec(
-    conn,
-    `CREATE TABLE data_centers (
-      id VARCHAR,
-      name VARCHAR,
-      address VARCHAR,
-      postal VARCHAR,
-      capacity_type VARCHAR,
-      company_name VARCHAR,
-      longitude DOUBLE,
-      latitude DOUBLE
-    )`
-  );
-  await runDuckDbExec(
-    conn,
-    `INSERT INTO data_centers (
-      id, name, address, postal, capacity_type, company_name, longitude, latitude
-    )
-    SELECT
-      id, name, address, postal, capacity_type, company_name, longitude, latitude
-    FROM ${READ_JSON_DATA_CENTERS}`
-  );
+  conn.insertJSONFromPath("__ai_map_warehouses.json", {
+    schema: "main",
+    name: "warehouses",
+    create: true,
+    shape: JSONTableShape.ROW_ARRAY,
+    columns: WAREHOUSES_JSON_COLUMNS,
+  });
+  conn.insertJSONFromPath("__ai_map_data_centers.json", {
+    schema: "main",
+    name: "data_centers",
+    create: true,
+    shape: JSONTableShape.ROW_ARRAY,
+    columns: DATA_CENTERS_JSON_COLUMNS,
+  });
 
   await runDuckDbExec(conn, HAVERSINE_KM_MACRO);
 
