@@ -140,7 +140,8 @@ export async function createAiMapDuckDbContext(): Promise<AiMapDuckDbContext> {
     accessMode: DuckDBAccessMode.READ_WRITE,
   });
   const conn = bindings.connect();
-  await runDuckDbExec(conn, `PRAGMA threads=2`);
+  // duckdb-wasm MVP/EH on Node is built without pthreads; threads>1 throws at runtime (e.g. Vercel).
+  await runDuckDbExec(conn, `PRAGMA threads=1`);
 
   const warehousesPath = path.join(process.cwd(), "public", "amazon_warehouses.geojson");
   const dataCentersPath = path.join(process.cwd(), "public", "data_centers.geojson");
